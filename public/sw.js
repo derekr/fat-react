@@ -7,6 +7,7 @@ const liveSubscribers = new Map();
 const liveRecord = { message: 'The sample field note is ready.', revision: 1 };
 const loadProgress = new Map();
 const scrollProgress = new Map();
+const habitatGenerations = new Map();
 const wizardProgress = new Map();
 const contextCards = {
   fern: { title: 'Copperleaf fern', collection: 'Field journal' },
@@ -482,7 +483,7 @@ function handleDeleteRows(request, url, route) {
   return eventStream(patch(renderDeletableRows('Row removed from the sample archive.'), 'delete-rows'));
 }
 
-async function handleHabitats(request, url, route) {
+async function handleHabitats(request, url, route, clientId) {
   if (request.method !== 'GET') return new Response('Not found', { status: 404 });
   let input;
   let signals;
@@ -503,8 +504,11 @@ async function handleHabitats(request, url, route) {
   const region = regions[signals.region];
   if (route === 'habitats/options') {
     if (signals.region && !Object.hasOwn(regions, signals.region)) return new Response('Unknown region', { status: 400 });
+    if (generation < (habitatGenerations.get(clientId) ?? 0)) return eventStream('');
+    habitatGenerations.set(clientId, generation);
     // Uneven response times make quick region changes exercise the stale-response path.
     await new Promise((resolve) => setTimeout(resolve, { ridge: 700, marsh: 200, grove: 450 }[signals.region] ?? 0));
+    if (habitatGenerations.get(clientId) !== generation) return eventStream('');
     const describeUrl = `${scope.pathname}__redact/habitats/describe?redactionInput=${encodeURIComponent(JSON.stringify({ generation }))}`;
     const select = region ? `<label for="habitat-choice">Habitat</label>
       <select id="habitat-choice" name="habitat" data-bind:habitat data-indicator="_loadingNote"
@@ -513,7 +517,8 @@ async function handleHabitats(request, url, route) {
         ${Object.entries(region.habitats).map(([id, [name]]) => `<option value="${escapeHtml(id)}">${escapeHtml(name)}</option>`).join('')}
       </select>` : '<p>Choose a region to load its habitats.</p>';
     return eventStream(patch(select, `habitat-options-${generation}`) +
-      patch('<p>Choose a habitat to see its field note.</p>', `habitat-description-${generation}`));
+      patch('<p>Choose a habitat to see its field note.</p>', `habitat-description-${generation}`) +
+      patchSignals({ habitatsReadyGeneration: generation }));
   }
   if (!region || !Object.hasOwn(regions, signals.region) ||
       typeof signals.habitat !== 'string' || !Object.hasOwn(region.habitats, signals.habitat)) {
@@ -887,7 +892,7 @@ async function handle(request, url, clientId) {
   if (route === 'sort' || route === 'sort/move' || route === 'sort/reset') return handleSort(request, url, route);
   if (route === 'details/view') return handleModalDetails(request, url);
   if (route === 'upload/check') return handleUpload(request, url);
-  if (route === 'habitats/options' || route === 'habitats/describe') return handleHabitats(request, url, route);
+  if (route === 'habitats/options' || route === 'habitats/describe') return handleHabitats(request, url, route, clientId);
   if (route === 'rows' || route === 'rows/reset' || route === 'rows/delete') return handleDeleteRows(request, url, route);
   if (route === 'tabs' || route === 'tabs/show') return handleTabs(request, url, route);
   if (route === 'progress/run') return handleProgress(request, url);

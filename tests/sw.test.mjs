@@ -169,7 +169,7 @@ test('dependent selects validate each region and habitat pair', async () => {
   }
   const options = await (await send('options', { region: 'ridge', habitat: 'stale' })).text();
   assert.match(options, /selector #habitat-options-1/);
-  assert.doesNotMatch(options, /datastar-patch-signals/);
+  assert.match(options, /"habitatsReadyGeneration":1/);
   assert.match(options, /Sunlit lookout/);
   assert.doesNotMatch(options, /Reed beds/);
   const note = await (await send('describe', { region: 'ridge', habitat: 'lookout' })).text();
@@ -195,10 +195,11 @@ test('dependent selects validate each region and habitat pair', async () => {
   });
   const [stale, current] = await Promise.all([slow, fast]);
   assert.deepEqual(order, ['marsh', 'ridge']);
-  assert.match(stale, /selector #habitat-options-2/);
-  assert.doesNotMatch(stale, /selector #habitat-options-3|datastar-patch-signals/);
+  assert.equal(stale, '');
   assert.match(current, /selector #habitat-options-3[^]*Reed beds/);
   assert.match(current, /selector #habitat-description-3/);
+  assert.match(current, /"habitatsReadyGeneration":3/);
+  assert.equal(await (await send('options', { region: 'ridge', selectionGeneration: 2 })).text(), '');
   assert.match(await (await send('describe', { region: 'marsh', habitat: 'island' }, { generation: 3 })).text(),
     /selector #habitat-description-3/);
 });

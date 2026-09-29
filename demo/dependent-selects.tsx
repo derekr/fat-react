@@ -15,7 +15,7 @@ const example = `const options = defineRedaction({
   path: optionsPath, method: 'get', schema: z.object({}),
 });
 
-<Recast asChild signals={{ region: '', habitat: '', selectionGeneration: 0 }}>
+<Recast asChild signals={{ region: '', habitat: '', selectionGeneration: 0, habitatsReadyGeneration: 0 }}>
   <section>
     <Rewire asChild event="change" action={options} input={{}}>
       <div>
@@ -26,7 +26,12 @@ const example = `const options = defineRedaction({
         </Recast>
       </div>
     </Rewire>
-    <Redact key={generation} id={'habitat-options-' + generation} />
+    <Recast asChild show="$selectionGeneration !== $habitatsReadyGeneration">
+      <select disabled><option>Loading habitats…</option></select>
+    </Recast>
+    <Recast asChild show="$selectionGeneration === $habitatsReadyGeneration">
+      <div><Redact key={generation} id={'habitat-options-' + generation} /></div>
+    </Recast>
     <Redact key={generation} id={'habitat-description-' + generation} />
   </section>
 </Recast>
@@ -47,7 +52,7 @@ function App() {
       <div className="eyebrow"><span className="eyebrow-dot" /> Example 10 / Dependent fields</div>
       <h1>Dependent <em>Selects.</em></h1>
       <p className="lede">Pick an invented region to request its habitats. Switch quickly between regions: old choices vanish immediately, and a slower response cannot replace the latest selection.</p>
-      <Recast asChild signals={{ region: '', habitat: '', selectionGeneration: 0 }}>
+      <Recast asChild signals={{ region: '', habitat: '', selectionGeneration: 0, habitatsReadyGeneration: 0 }}>
         <div className="demo-grid habitat-shell">
           <section className="panel result" aria-labelledby="habitat-title">
             <div className="panel-heading"><span className="step">01 / THE CHOICES</span><span className="live"><span /> SERVER OPTIONS</span></div>
@@ -63,9 +68,16 @@ function App() {
                 </Recast>
               </div>
             </Rewire>
-            <Redact key={generation} id={`habitat-options-${generation}`} className="habitat-field habitat-options"
-              fallback={generation ? 'Loading habitats for the selected region…' : 'Choose a region to load its habitats.'} />
-            <Recast asChild show="$_loadingHabitats"><span className="load-status" role="status" style={{ display: 'none' }}>Loading habitats…</span></Recast>
+            <Recast asChild show="$selectionGeneration !== $habitatsReadyGeneration">
+              <div className="habitat-field habitat-placeholder" style={{ display: 'none' }}>
+                <label htmlFor="habitat-pending">Habitat</label>
+                <select id="habitat-pending" disabled aria-label="Habitat choices loading"><option>Loading habitats…</option></select>
+              </div>
+            </Recast>
+            <Recast asChild show="$selectionGeneration === $habitatsReadyGeneration">
+              <div><Redact key={generation} id={`habitat-options-${generation}`} className="habitat-field habitat-options"
+                fallback="Choose a region to load its habitats." /></div>
+            </Recast>
           </section>
           <section className="panel" aria-labelledby="habitat-note-title">
             <div className="panel-heading"><span className="step">02 / THE FIELD NOTE</span><span className="pill">VALIDATED PAIR</span></div>
