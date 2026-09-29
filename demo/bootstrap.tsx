@@ -3,18 +3,24 @@ import type { ReactNode } from 'react';
 
 export async function bootstrap(app: ReactNode, scope = import.meta.env.BASE_URL) {
   const root = document.getElementById('root')!;
-  root.inert = true;
+  document.body.dataset.demoStarting = '';
   const loading = document.createElement('div');
   loading.className = 'startup-loading';
   loading.setAttribute('role', 'status');
   loading.setAttribute('aria-live', 'polite');
-  const spinner = document.createElement('span');
-  spinner.className = 'startup-spinner';
-  spinner.setAttribute('aria-hidden', 'true');
   const label = document.createElement('span');
   label.textContent = 'Starting the demo backend…';
-  loading.append(spinner, label);
+  loading.append(label);
   document.body.append(loading);
+  const regions = new Set<HTMLElement>();
+  const markInteractive = () => {
+    root.querySelectorAll<HTMLElement>('.demo-grid, .panel.result, .playground-inner').forEach((region) => {
+      region.inert = true;
+      regions.add(region);
+    });
+  };
+  const observer = new MutationObserver(markInteractive);
+  observer.observe(root, { childList: true, subtree: true });
   createRoot(root).render(app);
 
   try {
@@ -65,7 +71,9 @@ export async function bootstrap(app: ReactNode, scope = import.meta.env.BASE_URL
   } catch (error) {
     document.body.dataset.error = error instanceof Error ? error.message : 'Unable to start the demo.';
   } finally {
-    root.inert = false;
+    observer.disconnect();
+    for (const region of regions) region.inert = false;
+    delete document.body.dataset.demoStarting;
     loading.remove();
   }
 }

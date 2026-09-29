@@ -21,6 +21,7 @@ export default defineConfig(({ command }) => ({
     inlineValidation: fileURLToPath(new URL('./examples/inline-validation/index.html', import.meta.url)),
     bulkUpdate: fileURLToPath(new URL('./examples/bulk-update/index.html', import.meta.url)),
     progressBar: fileURLToPath(new URL('./examples/progress-bar/index.html', import.meta.url)),
+    lazyTabs: fileURLToPath(new URL('./examples/lazy-tabs/index.html', import.meta.url)),
   } } },
   plugins: [{
     name: 'microlighter-grammars',

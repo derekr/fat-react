@@ -89,3 +89,34 @@ test('progress job validates input and streams intermediate patches before compl
   assert.deepEqual(rest.map((chunk) => Number(chunk.match(/value="(\d+)"/)?.[1])), [40, 60, 80, 100]);
   assert.match(rest.at(-1), /Archive ready\. This was a simulated job\./);
 });
+
+test('lazy tabs serve only known panels and patch the active tab alongside HTML', async () => {
+  const listeners = new Map();
+  const scope = 'https://example.test/redact/examples/lazy-tabs/';
+  runInNewContext(readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8'), {
+    self: {
+      registration: { scope },
+      addEventListener(name, callback) { listeners.set(name, callback); },
+    },
+    URL, Response, TextEncoder, ReadableStream,
+  });
+  async function request(route, input, method = 'GET') {
+    const url = `${scope}__redact/${route}${input === undefined ? '' : `?redactionInput=${encodeURIComponent(input)}`}`;
+    let response;
+    listeners.get('fetch')({ request: new Request(url, { method }), clientId: 'sample-tab',
+      respondWith(value) { response = value; } });
+    return response;
+  }
+
+  assert.match(await (await request('tabs')).text(), /"activeTab":"overview"[^]*The small field guide/);
+  const specimens = await (await request('tabs/show', '{"tab":"specimens"}')).text();
+  assert.match(specimens, /"activeTab":"specimens"/);
+  assert.match(specimens, /selector #tabs-panel/);
+  assert.match(specimens, /Glasswing beetle/);
+  assert.doesNotMatch(specimens, /Notes from the path/);
+  for (const input of ['{"tab":"missing"}', '{"tab":"__proto__"}', '{"tab":"notes","extra":true}', '{}', 'not-json']) {
+    assert.equal((await request('tabs/show', input)).status, 400);
+  }
+  assert.equal((await request('tabs', '{}')).status, 400);
+  assert.equal((await request('tabs/show', '{"tab":"notes"}', 'POST')).status, 404);
+});

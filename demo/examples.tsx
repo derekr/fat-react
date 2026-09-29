@@ -54,6 +54,11 @@ function App() {
         <span>Start a sample archive job and watch one response stream progress updates and its finished view into the same host.</span>
         <span className="feature-tags">Rewire · indicator · POST · streaming SSE · Redact</span>
       </a>
+      <a className="example-feature" href={`${base}examples/lazy-tabs/`}>
+        <span className="step">08 / LIVE RECIPE</span><strong>Lazy Tabs <span aria-hidden="true">↗</span></strong>
+        <span>Switch between invented field guide panels. Each tab requests validated server HTML when selected.</span>
+        <span className="feature-tags">Rewire · GET · aria-selected · Redact</span>
+      </a>
       <section className="attribute-guide" aria-labelledby="attributes-title">
         <span className="under-label">CORE ATTRIBUTE MAP</span>
         <h2 id="attributes-title">The browser’s vocabulary, in JSX.</h2>

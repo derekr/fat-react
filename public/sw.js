@@ -116,6 +116,51 @@ function renderProgress(value, label) {
   </div>`;
 }
 
+const tabPanels = {
+  overview: {
+    label: 'Overview', title: 'The small field guide',
+    description: 'A pocket-sized tour of an invented landscape. Pick a section to ask the server for its panel.',
+    items: ['Three short sections', 'Invented sample observations', 'One shared HTML host'],
+  },
+  specimens: {
+    label: 'Specimens', title: 'Collected in the garden',
+    description: 'A few imaginary finds from the sample archive, rendered only when this tab is requested.',
+    items: ['Copperleaf fern', 'Glasswing beetle', 'Cloudberry moss'],
+  },
+  notes: {
+    label: 'Notes', title: 'Notes from the path',
+    description: 'The server prepares this panel on demand and sends the active-tab signal with its HTML.',
+    items: ['Morning light along the ridge', 'A quiet bend in the trail', 'A sketch for the next visit'],
+  },
+};
+
+function renderTab(tab) {
+  const { label, title, description, items } = tabPanels[tab];
+  return `<article class="tabs-content">
+    <span class="tabs-kicker">${escapeHtml(label)} / SERVER VIEW</span>
+    <h3>${escapeHtml(title)}</h3><p>${escapeHtml(description)}</p>
+    <ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+  </article>`;
+}
+
+function handleTabs(request, url, route) {
+  if (request.method !== 'GET') return new Response('Not found', { status: 404 });
+  let tab = 'overview';
+  if (route === 'tabs/show') {
+    let input;
+    try { input = JSON.parse(url.searchParams.get('redactionInput') || 'null'); }
+    catch { return new Response('Invalid tab', { status: 400 }); }
+    if (!input || typeof input !== 'object' || Array.isArray(input) ||
+        Object.keys(input).length !== 1 || !Object.hasOwn(tabPanels, input.tab)) {
+      return new Response('Invalid tab', { status: 400 });
+    }
+    tab = input.tab;
+  } else if (url.searchParams.has('redactionInput')) {
+    return new Response('Invalid tab', { status: 400 });
+  }
+  return eventStream(patchSignals({ activeTab: tab }) + patch(renderTab(tab), 'tabs-panel'));
+}
+
 async function handleProgress(request, url) {
   if (request.method !== 'POST') return new Response('Not found', { status: 404 });
   let input;
@@ -363,6 +408,7 @@ function openPipe(clientId) {
 
 async function handle(request, url, clientId) {
   const route = url.pathname.slice(prefix.length);
+  if (route === 'tabs' || route === 'tabs/show') return handleTabs(request, url, route);
   if (route === 'progress/run') return handleProgress(request, url);
   if (route === 'bulk' || route === 'bulk/activate' || route === 'bulk/deactivate') return handleBulk(request, url, route);
   if (route === 'catalog/check') return handleCatalog(request, url);
