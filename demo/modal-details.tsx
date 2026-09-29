@@ -4,6 +4,7 @@ import { defineRedaction, Redact, Recast, Rewire } from '../src';
 import { bootstrap } from './bootstrap';
 import './style.css';
 import './examples.css';
+import './modal-details.css';
 
 const base = import.meta.env.BASE_URL;
 const exampleScope = `${base}examples/modal-details/`;
@@ -69,7 +70,7 @@ function App() {
             <div className="details-heading"><div><span className="step">SERVER DETAIL</span><h2 id="details-title">Entry details</h2></div>
               <button type="button" className="details-close" onClick={() => dialog.current?.close()} aria-label="Close details">×</button></div>
             <Recast asChild show="$_detailsLoading"><p className="details-loading" style={{ display: 'none' }} role="status">Loading entry details…</p></Recast>
-            <Recast asChild show="!$_detailsLoading"><div><Redact id="modal-content" className="details-region" fallback="Choose an entry to view its details." /></div></Recast>
+            <Recast asChild show="!$_detailsLoading"><div className="details-content"><Redact id="modal-content" className="details-region" fallback="Choose an entry to view its details." /></div></Recast>
             <button type="button" className="details-done" onClick={() => dialog.current?.close()}>Close</button>
           </dialog>
           <p className="load-explainer">The dialog and trigger belong to React. Datastar morphs only the contents of <code>#modal-content</code>.</p>

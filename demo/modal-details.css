@@ -1,0 +1,6 @@
+.details-dialog[open]{box-sizing:border-box;display:flex;flex-direction:column;height:min(410px,calc(100dvh - 36px))}
+.details-heading{flex:none}
+.details-loading,.details-content{flex:1;min-height:0;overflow-y:auto}
+.details-loading{margin:0}
+.details-region{min-height:0}
+.details-done{align-self:flex-start;flex:none}
