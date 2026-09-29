@@ -22,6 +22,9 @@ export default defineConfig(({ command }) => ({
     bulkUpdate: fileURLToPath(new URL('./examples/bulk-update/index.html', import.meta.url)),
     progressBar: fileURLToPath(new URL('./examples/progress-bar/index.html', import.meta.url)),
     lazyTabs: fileURLToPath(new URL('./examples/lazy-tabs/index.html', import.meta.url)),
+    deleteRow: fileURLToPath(new URL('./examples/delete-row/index.html', import.meta.url)),
+    dependentSelects: fileURLToPath(new URL('./examples/dependent-selects/index.html', import.meta.url)),
+    fileUpload: fileURLToPath(new URL('./examples/file-upload/index.html', import.meta.url)),
   } } },
   plugins: [{
     name: 'microlighter-grammars',

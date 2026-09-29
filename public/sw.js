@@ -15,6 +15,27 @@ const bulkEntries = [
   { id: 'note03', name: 'Seed catalog', active: false },
   { id: 'note04', name: 'Paper map', active: true },
 ];
+const initialDeletableRows = [
+  { id: 'card01', title: 'Copperleaf sketch', category: 'Drawing' },
+  { id: 'card02', title: 'Quiet trail map', category: 'Map' },
+  { id: 'card03', title: 'Garden log', category: 'Journal' },
+  { id: 'card04', title: 'Cloud study', category: 'Drawing' },
+];
+let deletableRows = [...initialDeletableRows];
+const regions = {
+  ridge: { label: 'Amber Ridge', habitats: {
+    lookout: ['Sunlit lookout', 'A bright shelf above the invented valley.'],
+    meadow: ['High meadow', 'A quiet patch of grasses near the ridge.'],
+  } },
+  marsh: { label: 'Silver Marsh', habitats: {
+    reeds: ['Reed beds', 'Tall stems line a shallow sample pool.'],
+    island: ['Small island', 'A tiny dry landing among the reeds.'],
+  } },
+  grove: { label: 'Moss Grove', habitats: {
+    clearing: ['Fern clearing', 'A soft open space between invented trees.'],
+    canopy: ['Green canopy', 'A shaded path under broad leaves.'],
+  } },
+};
 const contacts = [
   ['Juniper', 'Comet'], ['Clover', 'Sparrow'], ['Aster', 'Moon'],
   ['Maple', 'Finch'], ['Indigo', 'Wren'], ['Willow', 'Cloud'],
@@ -141,6 +162,110 @@ function renderTab(tab) {
     <h3>${escapeHtml(title)}</h3><p>${escapeHtml(description)}</p>
     <ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
   </article>`;
+}
+
+function renderDeletableRows(message = 'Choose a row to remove.') {
+  const rows = deletableRows.map(({ id, title, category }) => {
+    const url = `${scope.pathname}__redact/rows/delete?redactionInput=${encodeURIComponent(JSON.stringify({ id }))}`;
+    return `<tr><th scope="row">${escapeHtml(title)}</th><td>${escapeHtml(category)}</td>
+      <td><button type="button" data-on:click="${escapeHtml(`@delete(${JSON.stringify(url)})`)}" aria-label="Delete ${escapeHtml(title)}">Delete</button></td></tr>`;
+  }).join('');
+  return `<div class="delete-table">
+    ${deletableRows.length ? `<table><thead><tr><th scope="col">Entry</th><th scope="col">Kind</th><th scope="col">Action</th></tr></thead><tbody>${rows}</tbody></table>` : '<p class="delete-empty">The archive is empty. Restore the sample rows to try again.</p>'}
+    <p class="delete-message" role="status">${escapeHtml(message)}</p>
+  </div>`;
+}
+
+function handleDeleteRows(request, url, route) {
+  const expected = route === 'rows' ? 'GET' : route === 'rows/reset' ? 'POST' : 'DELETE';
+  if (request.method !== expected) return new Response('Not found', { status: 404 });
+  let input;
+  try { input = JSON.parse(url.searchParams.get('redactionInput') || (route === 'rows' ? '{}' : 'null')); }
+  catch { return new Response('Invalid row request', { status: 400 }); }
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return new Response('Invalid row request', { status: 400 });
+  if (route === 'rows') {
+    if (Object.keys(input).length) return new Response('Invalid row request', { status: 400 });
+    return eventStream(patch(renderDeletableRows(), 'delete-rows'));
+  }
+  if (route === 'rows/reset') {
+    if (Object.keys(input).length) return new Response('Invalid row request', { status: 400 });
+    deletableRows = [...initialDeletableRows];
+    return eventStream(patch(renderDeletableRows('Sample rows restored.'), 'delete-rows'));
+  }
+  if (Object.keys(input).length !== 1 || typeof input.id !== 'string' ||
+      !initialDeletableRows.some((row) => row.id === input.id)) return new Response('Invalid row ID', { status: 400 });
+  if (!deletableRows.some((row) => row.id === input.id)) return new Response('Row already removed', { status: 409 });
+  deletableRows = deletableRows.filter((row) => row.id !== input.id);
+  return eventStream(patch(renderDeletableRows('Row removed from the sample archive.'), 'delete-rows'));
+}
+
+function handleHabitats(request, url, route) {
+  if (request.method !== 'GET') return new Response('Not found', { status: 404 });
+  let input;
+  let signals;
+  try {
+    input = JSON.parse(url.searchParams.get('redactionInput') || 'null');
+    signals = JSON.parse(url.searchParams.get('datastar') || 'null');
+  } catch { return new Response('Invalid habitat request', { status: 400 }); }
+  if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).length ||
+      !signals || typeof signals !== 'object' || Array.isArray(signals) ||
+      typeof signals.region !== 'string' || signals.region.length > 16) {
+    return new Response('Invalid habitat request', { status: 400 });
+  }
+  const region = regions[signals.region];
+  if (route === 'habitats/options') {
+    if (signals.region && !Object.hasOwn(regions, signals.region)) return new Response('Unknown region', { status: 400 });
+    const select = region ? `<label for="habitat-choice">Habitat</label>
+      <select id="habitat-choice" name="habitat" data-bind:habitat data-on:change="${escapeHtml(`@get(${JSON.stringify(`${scope.pathname}__redact/habitats/describe?redactionInput=%7B%7D`)})`)}">
+        <option value="">Choose a habitat…</option>
+        ${Object.entries(region.habitats).map(([id, [name]]) => `<option value="${escapeHtml(id)}">${escapeHtml(name)}</option>`).join('')}
+      </select>` : '<p>Choose a region to load its habitats.</p>';
+    return eventStream(patchSignals({ habitat: '' }) + patch(select, 'habitat-options') +
+      patch('<p>Choose a habitat to see its field note.</p>', 'habitat-description'));
+  }
+  if (!region || !Object.hasOwn(regions, signals.region) ||
+      typeof signals.habitat !== 'string' || !Object.hasOwn(region.habitats, signals.habitat)) {
+    return new Response('Invalid region and habitat pair', { status: 400 });
+  }
+  const [name, note] = region.habitats[signals.habitat];
+  return eventStream(patch(`<article class="habitat-note"><span>${escapeHtml(region.label)} / FIELD NOTE</span>
+    <h3>${escapeHtml(name)}</h3><p>${escapeHtml(note)}</p></article>`, 'habitat-description'));
+}
+
+async function handleUpload(request, url) {
+  if (request.method !== 'POST') return new Response('Not found', { status: 404 });
+  let input;
+  try { input = JSON.parse(url.searchParams.get('redactionInput') || 'null'); }
+  catch { return new Response('Invalid upload action', { status: 400 }); }
+  if (!input || typeof input !== 'object' || Array.isArray(input) ||
+      Object.keys(input).length !== 1 || input.kind !== 'field-note') {
+    return new Response('Invalid upload action', { status: 400 });
+  }
+  if (!request.headers.get('content-type')?.startsWith('multipart/form-data;')) {
+    return new Response('Expected multipart form data', { status: 400 });
+  }
+  let form;
+  try { form = await request.formData(); }
+  catch { return new Response('Invalid form data', { status: 400 }); }
+  const file = form.get('fieldNote');
+  let message;
+  let success = false;
+  if ([...form.keys()].some((key) => key !== 'fieldNote') || form.getAll('fieldNote').length !== 1 ||
+      !(file instanceof File) || file.size === 0 || file.size > 4096 ||
+      file.name.length > 100 || !file.name.toLowerCase().endsWith('.txt') ||
+      !['', 'text/plain'].includes(file.type)) {
+    message = 'Choose a nonempty .txt file up to 4 KB.';
+  } else {
+    const content = await file.text();
+    if (!content.trim() || content.includes('\0') || content.includes('\uFFFD')) {
+      message = 'The file must contain readable text.';
+    } else {
+      const lines = content.trimEnd().split(/\r\n|\n|\r/).length;
+      message = `Text file checked locally: ${lines} ${lines === 1 ? 'line' : 'lines'}, ${file.size} bytes. Nothing was stored.`;
+      success = true;
+    }
+  }
+  return eventStream(patch(`<p class="upload-feedback ${success ? 'success' : 'error'}" role="status">${escapeHtml(message)}</p>`, 'upload-result'));
 }
 
 function handleTabs(request, url, route) {
@@ -408,6 +533,9 @@ function openPipe(clientId) {
 
 async function handle(request, url, clientId) {
   const route = url.pathname.slice(prefix.length);
+  if (route === 'upload/check') return handleUpload(request, url);
+  if (route === 'habitats/options' || route === 'habitats/describe') return handleHabitats(request, url, route);
+  if (route === 'rows' || route === 'rows/reset' || route === 'rows/delete') return handleDeleteRows(request, url, route);
   if (route === 'tabs' || route === 'tabs/show') return handleTabs(request, url, route);
   if (route === 'progress/run') return handleProgress(request, url);
   if (route === 'bulk' || route === 'bulk/activate' || route === 'bulk/deactivate') return handleBulk(request, url, route);

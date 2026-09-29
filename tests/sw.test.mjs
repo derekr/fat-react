@@ -120,3 +120,99 @@ test('lazy tabs serve only known panels and patch the active tab alongside HTML'
   assert.equal((await request('tabs', '{}')).status, 400);
   assert.equal((await request('tabs/show', '{"tab":"notes"}', 'POST')).status, 404);
 });
+
+test('delete row validates IDs, removes one record, and restores the sample', async () => {
+  const listeners = new Map();
+  const scope = 'https://example.test/redact/examples/delete-row/';
+  runInNewContext(readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8'), {
+    self: { registration: { scope }, addEventListener(name, callback) { listeners.set(name, callback); } },
+    URL, Response, TextEncoder, ReadableStream,
+  });
+  async function send(route, method, input) {
+    const url = `${scope}__redact/rows${route}${input === undefined ? '' : `?redactionInput=${encodeURIComponent(JSON.stringify(input))}`}`;
+    let response;
+    listeners.get('fetch')({ request: new Request(url, { method }), clientId: 'sample-tab',
+      respondWith(value) { response = value; } });
+    return response;
+  }
+  const first = await (await send('', 'GET')).text();
+  assert.match(first, /Copperleaf sketch/);
+  assert.match(first, /@delete\(/);
+  for (const input of [{ id: 'card99' }, { id: 'card01', extra: true }, { id: 1 }]) {
+    assert.equal((await send('/delete', 'DELETE', input)).status, 400);
+  }
+  assert.equal(await (await send('', 'GET')).text(), first);
+  const after = await (await send('/delete', 'DELETE', { id: 'card01' })).text();
+  assert.doesNotMatch(after, /Copperleaf sketch/);
+  assert.match(after, /Quiet trail map/);
+  assert.equal((await send('/delete', 'DELETE', { id: 'card01' })).status, 409);
+  assert.equal((await send('/delete', 'POST', { id: 'card02' })).status, 404);
+  const restored = await (await send('/reset', 'POST', {})).text();
+  assert.match(restored, /Copperleaf sketch/);
+});
+
+test('dependent selects validate each region and habitat pair', async () => {
+  const listeners = new Map();
+  const scope = 'https://example.test/redact/examples/dependent-selects/';
+  runInNewContext(readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8'), {
+    self: { registration: { scope }, addEventListener(name, callback) { listeners.set(name, callback); } },
+    URL, Response, TextEncoder, ReadableStream,
+  });
+  async function send(route, signals, input = {}) {
+    const url = new URL(`${scope}__redact/habitats/${route}`);
+    url.searchParams.set('redactionInput', JSON.stringify(input));
+    url.searchParams.set('datastar', JSON.stringify(signals));
+    let response;
+    listeners.get('fetch')({ request: new Request(url), clientId: 'sample-tab',
+      respondWith(value) { response = value; } });
+    return response;
+  }
+  const options = await (await send('options', { region: 'ridge', habitat: 'stale' })).text();
+  assert.match(options, /"habitat":""/);
+  assert.match(options, /Sunlit lookout/);
+  assert.doesNotMatch(options, /Reed beds/);
+  const note = await (await send('describe', { region: 'ridge', habitat: 'lookout' })).text();
+  assert.match(note, /bright shelf above the invented valley/);
+  for (const [route, signals] of [
+    ['options', { region: '__proto__' }],
+    ['options', { region: 1 }],
+    ['describe', { region: 'ridge', habitat: 'reeds' }],
+    ['describe', { region: 'ridge', habitat: 'constructor' }],
+    ['describe', { region: 'grove', habitat: '' }],
+  ]) assert.equal((await send(route, signals)).status, 400);
+  assert.equal((await send('options', { region: 'ridge' }, { unexpected: true })).status, 400);
+});
+
+test('multipart upload validates file contents and returns only a summary', async () => {
+  const listeners = new Map();
+  const scope = 'https://example.test/redact/examples/file-upload/';
+  runInNewContext(readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8'), {
+    self: { registration: { scope }, addEventListener(name, callback) { listeners.set(name, callback); } },
+    URL, Response, TextEncoder, ReadableStream, File,
+  });
+  async function send(file, input = { kind: 'field-note' }, method = 'POST', extra = false) {
+    const form = new FormData();
+    if (file) form.append('fieldNote', file);
+    if (extra) form.append('unexpected', 'value');
+    const url = `${scope}__redact/upload/check?redactionInput=${encodeURIComponent(JSON.stringify(input))}`;
+    let response;
+    listeners.get('fetch')({ request: new Request(url, { method, ...(method === 'POST' ? { body: form } : {}) }),
+      clientId: 'sample-tab', respondWith(value) { response = value; } });
+    return response;
+  }
+  const file = new File(['invented fern\nquiet hill'], 'sample-note.txt', { type: 'text/plain' });
+  assert.equal((await send(file, { kind: 'unknown' })).status, 400);
+  assert.equal((await send(file, { kind: 'field-note' }, 'GET')).status, 404);
+  for (const invalid of [
+    new File([''], 'empty.txt', { type: 'text/plain' }),
+    new File(['x'.repeat(4097)], 'large.txt', { type: 'text/plain' }),
+    new File(['not a text file'], 'image.png', { type: 'image/png' }),
+    new File(['\0'], 'binary.txt', { type: 'text/plain' }),
+  ]) assert.match(await (await send(invalid)).text(), /upload-feedback error/);
+  assert.match(await (await send(file, { kind: 'field-note' }, 'POST', true)).text(), /upload-feedback error/);
+  const response = await send(file);
+  assert.equal(response.headers.get('content-type'), 'text/event-stream; charset=utf-8');
+  const result = await response.text();
+  assert.match(result, /2 lines, 24 bytes/);
+  assert.doesNotMatch(result, /invented fern|quiet hill|sample-note\.txt/);
+});

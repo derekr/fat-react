@@ -59,6 +59,21 @@ function App() {
         <span>Switch between invented field guide panels. Each tab requests validated server HTML when selected.</span>
         <span className="feature-tags">Rewire · GET · aria-selected · Redact</span>
       </a>
+      <a className="example-feature" href={`${base}examples/delete-row/`}>
+        <span className="step">09 / LIVE RECIPE</span><strong>Delete Row <span aria-hidden="true">↗</span></strong>
+        <span>Delete invented archive rows with validated DELETE requests. The server morphs the list and provides a reset action.</span>
+        <span className="feature-tags">DELETE · Rewire · server-owned controls · Redact</span>
+      </a>
+      <a className="example-feature" href={`${base}examples/dependent-selects/`}>
+        <span className="step">10 / LIVE RECIPE</span><strong>Dependent Selects <span aria-hidden="true">↗</span></strong>
+        <span>Choose an invented region to load its habitats, then choose a habitat to reveal a server-rendered description.</span>
+        <span className="feature-tags">Rewire · bind · GET · dependent fields · Redact</span>
+      </a>
+      <a className="example-feature" href={`${base}examples/file-upload/`}>
+        <span className="step">11 / LIVE RECIPE</span><strong>File Upload <span aria-hidden="true">↗</span></strong>
+        <span>Submit a small text file as form data. The demo backend validates it locally and returns a summary without storing its contents.</span>
+        <span className="feature-tags">Rewire · multipart form · POST · Redact</span>
+      </a>
       <section className="attribute-guide" aria-labelledby="attributes-title">
         <span className="under-label">CORE ATTRIBUTE MAP</span>
         <h2 id="attributes-title">The browser’s vocabulary, in JSX.</h2>
