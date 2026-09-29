@@ -8,6 +8,13 @@ const liveRecord = { message: 'The sample field note is ready.', revision: 1 };
 const loadProgress = new Map();
 const scrollProgress = new Map();
 const wizardProgress = new Map();
+const contextCards = {
+  fern: { title: 'Copperleaf fern', collection: 'Field journal' },
+  map: { title: 'Pocket trail map', collection: 'Map drawer' },
+  sky: { title: 'Evening sky notes', collection: 'Field journal' },
+};
+const contextCollections = ['Field journal', 'Map drawer', 'Sketch shelf'];
+const contextPinned = new Set();
 const encoder = new TextEncoder();
 const initialContact = { firstName: 'Juniper', lastName: 'Comet', role: 'Cartographer' };
 let contact = { ...initialContact };
@@ -89,6 +96,52 @@ function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   })[char]);
+}
+
+function contextCommand(id, generation, operation, collection) {
+  const input = { id, generation, operation, ...(collection ? { collection } : {}) };
+  const url = `${scope.pathname}__redact/context/command?redactionInput=${encodeURIComponent(JSON.stringify(input))}`;
+  return escapeHtml(`@post(${JSON.stringify(url)})`);
+}
+
+async function handleContext(request, url, route) {
+  const command = route === 'context/command';
+  if (request.method !== (command ? 'POST' : 'GET')) return new Response('Not found', { status: 404 });
+  let input;
+  try { input = JSON.parse(url.searchParams.get('redactionInput') || 'null'); }
+  catch { return new Response('Invalid menu request', { status: 400 }); }
+  if (!input || typeof input !== 'object' || Array.isArray(input) ||
+      typeof input.id !== 'string' || !Object.hasOwn(contextCards, input.id) ||
+      !Number.isSafeInteger(input.generation) || input.generation < 1 || input.generation > 999999 ||
+      Object.keys(input).length !== (command ? (input.operation === 'move' ? 4 : 3) : 2)) {
+    return new Response('Invalid menu request', { status: 400 });
+  }
+  const card = contextCards[input.id];
+  if (command) {
+    if (input.operation === 'pin' || input.operation === 'unpin') {
+      if ((input.operation === 'pin') === contextPinned.has(input.id)) return new Response('Outdated action', { status: 409 });
+      if (input.operation === 'pin') contextPinned.add(input.id);
+      else contextPinned.delete(input.id);
+    } else if (input.operation === 'move' && typeof input.collection === 'string' &&
+               contextCollections.includes(input.collection) && input.collection !== card.collection) {
+      card.collection = input.collection;
+    } else return new Response('Invalid menu action', { status: 400 });
+    const message = input.operation === 'move' ? `${card.title} moved to ${card.collection}.` :
+      `${card.title} ${input.operation === 'pin' ? 'pinned' : 'unpinned'}.`;
+    return eventStream(patch(`<p class="context-feedback" role="status">${escapeHtml(message)}</p>`, 'context-result'));
+  }
+  await new Promise((resolve) => setTimeout(resolve, route === 'context/collections' ? 650 : 500));
+  if (route === 'context/items') {
+    const operation = contextPinned.has(input.id) ? 'unpin' : 'pin';
+    return eventStream(patch(`<button type="button" role="menuitem" class="context-row" data-context-command="" data-on:click="${contextCommand(input.id, input.generation, operation)}">${operation === 'pin' ? 'Pin' : 'Unpin'} ${escapeHtml(card.title)}</button>`,
+      `context-items-${input.generation}`));
+  }
+  if (route === 'context/collections') {
+    const choices = contextCollections.filter((collection) => collection !== card.collection).map((collection) =>
+      `<button type="button" role="menuitem" class="context-row" data-context-command="" data-on:click="${contextCommand(input.id, input.generation, 'move', collection)}">${escapeHtml(collection)}</button>`).join('');
+    return eventStream(patch(choices, `context-collections-${input.generation}`));
+  }
+  return new Response('Not found', { status: 404 });
 }
 
 function wizardAction(route, input) {
@@ -817,6 +870,7 @@ async function handleLive(request, url, route, clientId) {
 
 async function handle(request, url, clientId) {
   const route = url.pathname.slice(prefix.length);
+  if (route.startsWith('context/')) return handleContext(request, url, route);
   if (route === 'wizard' || route.startsWith('wizard/')) return handleWizard(request, url, route, clientId);
   if (route === 'feed') return handleFeed(request, url);
   if (route === 'live/stream' || route === 'live/update') return handleLive(request, url, route, clientId);

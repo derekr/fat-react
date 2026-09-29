@@ -99,6 +99,11 @@ function App() {
         <span>Watch invented archive events arrive one at a time over SSE. Append patches preserve the earlier entries.</span>
         <span className="feature-tags">Rewire · GET · timed SSE · append · Redact</span>
       </a>
+      <a className="example-feature" href={`${base}examples/context-menu/`}>
+        <span className="step">17 / LIVE RECIPE</span><strong>Context Menu <span aria-hidden="true">↗</span></strong>
+        <span>Open a card menu instantly. Static actions and a submenu work right away; card-specific actions and collection choices load into separate outlets.</span>
+        <span className="feature-tags">popover · Rewire · Recast · async submenus · Redact</span>
+      </a>
       <section className="attribute-guide" aria-labelledby="attributes-title">
         <span className="under-label">CORE ATTRIBUTE MAP</span>
         <h2 id="attributes-title">The browser’s vocabulary, in JSX.</h2>

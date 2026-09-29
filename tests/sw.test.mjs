@@ -386,3 +386,39 @@ test('live activity feed delivers sequential append patches and ends its stream'
   assert.match(chunks.at(-1), /All sample events delivered/);
   assert.match(chunks.at(-1), /"_feedRunning":false/);
 });
+
+test('context menu resolves separate outlets and validates card commands', async () => {
+  const listeners = new Map();
+  const scope = 'https://example.test/redact/examples/context-menu/';
+  runInNewContext(readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8'), {
+    self: { registration: { scope }, addEventListener(name, callback) { listeners.set(name, callback); } },
+    URL, Response, TextEncoder, ReadableStream, setTimeout,
+  });
+  async function send(route, input, method = 'GET') {
+    const url = `${scope}__redact/context/${route}?redactionInput=${encodeURIComponent(JSON.stringify(input))}`;
+    let response;
+    listeners.get('fetch')({ request: new Request(url, { method }), clientId: 'menu-tab',
+      respondWith(value) { response = value; } });
+    return response;
+  }
+  const item = { id: 'fern', generation: 4 };
+  for (const bad of [{ ...item, id: 'missing' }, { ...item, generation: '../x' }, { ...item, extra: true }]) {
+    assert.equal((await send('items', bad)).status, 400);
+  }
+  assert.equal((await send('command', { ...item, operation: 'pin' })).status, 404);
+  const initial = await (await send('items', item)).text();
+  assert.match(initial, /selector #context-items-4/);
+  assert.match(initial, /Pin Copperleaf fern/);
+  const collections = await (await send('collections', item)).text();
+  assert.match(collections, /selector #context-collections-4/);
+  assert.match(collections, /Map drawer/);
+  assert.doesNotMatch(collections, /data: elements .*Field journal/);
+  assert.equal((await send('command', { ...item, operation: 'move', collection: 'No place' }, 'POST')).status, 400);
+  assert.equal((await send('command', { ...item, operation: 'move', collection: 'Field journal' }, 'POST')).status, 400);
+  assert.equal((await send('command', { ...item, operation: 'delete' }, 'POST')).status, 400);
+  assert.match(await (await send('command', { ...item, operation: 'pin' }, 'POST')).text(), /Copperleaf fern pinned/);
+  assert.equal((await send('command', { ...item, operation: 'pin' }, 'POST')).status, 409);
+  assert.match(await (await send('items', { ...item, generation: 5 })).text(), /Unpin Copperleaf fern/);
+  assert.match(await (await send('command', { ...item, operation: 'move', collection: 'Map drawer' }, 'POST')).text(), /moved to Map drawer/);
+  assert.doesNotMatch(await (await send('collections', { ...item, generation: 5 })).text(), /data: elements .*Map drawer/);
+});

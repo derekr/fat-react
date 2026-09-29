@@ -30,6 +30,7 @@ export default defineConfig(({ command }) => ({
     crossTabUpdates: fileURLToPath(new URL('./examples/cross-tab-updates/index.html', import.meta.url)),
     multiStepForm: fileURLToPath(new URL('./examples/multi-step-form/index.html', import.meta.url)),
     liveActivityFeed: fileURLToPath(new URL('./examples/live-activity-feed/index.html', import.meta.url)),
+    contextMenu: fileURLToPath(new URL('./examples/context-menu/index.html', import.meta.url)),
   } } },
   plugins: [{
     name: 'microlighter-grammars',

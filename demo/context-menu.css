@@ -1,0 +1,15 @@
+.context-shell{max-width:900px;margin:0 auto}.context-cards{display:grid;gap:10px;margin:25px 0}
+.context-card{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:17px 20px;border:1px solid #d0decd;border-radius:9px;background:#fffefa}
+.context-card.highlighted{border-color:#cc805e;box-shadow:inset 4px 0 #cc805e}.context-card span{font:11px 'DM Mono',monospace;color:#68836c;text-transform:uppercase}
+.context-card h3{font-size:17px;color:#365640;margin:8px 0 0}.context-card button{white-space:nowrap;padding:9px 13px;border:1px solid #b9cfb8;border-radius:7px;background:#f3f8f1;color:#31523b;font-weight:700}
+.context-cards.compact .context-card{padding:8px 16px}.context-cards.compact .context-card h3{margin:2px 0;font-size:15px}
+.context-result{min-height:45px;color:#53755d;font-size:13px}.context-result:empty:before,.context-outlet:empty:before{content:attr(data-fallback);color:#718474;font-size:12px}
+.context-feedback{margin:0}.context-popover{position:fixed;inset:auto;margin:0;width:248px;box-sizing:border-box;padding:9px;border:1px solid #c5d6c3;border-radius:10px;background:#fffefa;color:#2b4433;box-shadow:0 16px 46px #182e2352;overflow:visible}
+.context-popover::backdrop{background:transparent}.context-popover [role=menu]{display:grid;align-content:start;gap:2px}
+.context-kicker{padding:8px 9px 4px;font:10px 'DM Mono',monospace;letter-spacing:.08em;color:#719077}.context-divider{border-top:1px solid #dee7da;margin:6px 0}
+.context-row{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:38px;padding:8px 10px;border:0;border-radius:5px;background:transparent;text-align:left;color:#2e4c37;font-size:13px;cursor:pointer;text-decoration:none}
+.context-row:hover,.context-row:focus-visible{background:#eaf2e6;outline:none}.context-row:focus-visible{box-shadow:inset 0 0 0 2px #789d7e}
+.context-row span{font-size:19px}.context-loading{padding:8px 10px;color:#69816d;font-size:12px}.context-outlet{min-height:38px}
+.context-subpanel{position:absolute;top:0;left:calc(100% + 6px);width:248px;min-height:120px;padding:9px;border:1px solid #c5d6c3;border-radius:10px;background:#fffefa;box-shadow:0 16px 46px #182e2352}
+.context-card button:focus-visible{outline:3px solid #e5946b;outline-offset:3px}
+@media(max-width:650px){.context-subpanel{left:0;top:0;min-height:100%;box-shadow:none}.context-card{padding:13px}.context-card h3{font-size:15px}}
