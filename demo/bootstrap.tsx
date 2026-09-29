@@ -2,13 +2,23 @@ import { createRoot } from 'react-dom/client';
 import type { ReactNode } from 'react';
 
 export async function bootstrap(app: ReactNode, scope = import.meta.env.BASE_URL) {
-  createRoot(document.getElementById('root')!).render(app);
-  if (!('serviceWorker' in navigator)) {
-    document.body.dataset.error = 'Service workers are needed for this static demo.';
-    return;
-  }
+  const root = document.getElementById('root')!;
+  root.inert = true;
+  const loading = document.createElement('div');
+  loading.className = 'startup-loading';
+  loading.setAttribute('role', 'status');
+  loading.setAttribute('aria-live', 'polite');
+  const spinner = document.createElement('span');
+  spinner.className = 'startup-spinner';
+  spinner.setAttribute('aria-hidden', 'true');
+  const label = document.createElement('span');
+  label.textContent = 'Starting the demo backend…';
+  loading.append(spinner, label);
+  document.body.append(loading);
+  createRoot(root).render(app);
 
   try {
+    if (!('serviceWorker' in navigator)) throw new Error('Service workers are needed for this static demo.');
     const base = import.meta.env.BASE_URL;
     const registration = await navigator.serviceWorker.register(`${base}sw.js`, { scope });
     if (scope !== base) {
@@ -43,6 +53,7 @@ export async function bootstrap(app: ReactNode, scope = import.meta.env.BASE_URL
         check();
       });
     }
+    label.textContent = 'Starting live updates…';
     const script = document.createElement('script');
     script.type = 'module';
     script.src = 'https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.4/bundles/datastar.js';
@@ -53,5 +64,8 @@ export async function bootstrap(app: ReactNode, scope = import.meta.env.BASE_URL
     });
   } catch (error) {
     document.body.dataset.error = error instanceof Error ? error.message : 'Unable to start the demo.';
+  } finally {
+    root.inert = false;
+    loading.remove();
   }
 }
