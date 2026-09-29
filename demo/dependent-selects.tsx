@@ -38,7 +38,7 @@ const example = `const options = defineRedaction({
     )}
     {noteGenerations.map((slot) =>
       <Recast key={slot} asChild show={'$noteReadyGeneration === ' + slot}
-        classes={{ pending: '$noteGeneration !== $noteReadyGeneration' }}>
+        classes={{ pending: '$habitat && $noteGeneration !== $noteReadyGeneration' }}>
         <div><Redact id={'habitat-description-' + slot} /></div>
       </Recast>
     )}
@@ -124,7 +124,7 @@ function App() {
           <section className="panel" aria-labelledby="habitat-note-title">
             <div className="panel-heading"><span className="step">02 / THE FIELD NOTE</span><span className="pill">VALIDATED PAIR</span></div>
             <h2 id="habitat-note-title">A note from the server.</h2>
-            <p className="panel-description">The previous note stays visible but dimmed until you choose a new habitat and its note arrives.</p>
+            <p className="panel-description">The previous note stays visible when you change regions. Choosing a new habitat dims it until the next note arrives.</p>
             <div className="habitat-note-display">
               <Recast asChild show="$noteReadyGeneration === 0">
                 <div className="habitat-description habitat-note-loading" role="status">
@@ -132,8 +132,8 @@ function App() {
                 </div>
               </Recast>
               {noteGenerations.map((slot) => <Recast key={slot} asChild show={`$noteReadyGeneration === ${slot}`}
-                classes={{ pending: '$noteGeneration !== $noteReadyGeneration' }}
-                attr={{ 'aria-busy': "$noteGeneration !== $noteReadyGeneration ? 'true' : 'false'" }}>
+                classes={{ pending: '!!$habitat && $noteGeneration !== $noteReadyGeneration' }}
+                attr={{ 'aria-busy': "$habitat && $noteGeneration !== $noteReadyGeneration ? 'true' : 'false'" }}>
                 <div className="habitat-note-resolved"><Redact id={`habitat-description-${slot}`} className="habitat-description" /></div>
               </Recast>)}
             </div>
@@ -141,7 +141,7 @@ function App() {
         </div>
       </Recast>
       <section className="code-section" data-syntax-theme="dracula" aria-labelledby="habitat-code-title">
-        <div className="code-intro"><div><span className="under-label">THE WIRING</span><h2 id="habitat-code-title">The next choice comes from the server.</h2></div><p>The last resolved select and note remain dimmed until their replacements arrive. Each response patches its own outlet before signaling that it is ready.</p></div>
+        <div className="code-intro"><div><span className="under-label">THE WIRING</span><h2 id="habitat-code-title">The next choice comes from the server.</h2></div><p>The last resolved select dims during a region request. The note remains readable until a new habitat is chosen, then dims while its replacement loads.</p></div>
         <div className="code-grid search-code"><div className="code-card"><div className="code-heading"><span>REACT + SSE</span><span>demo/dependent-selects.tsx</span></div><pre><code className="language-tsx">{example}</code></pre></div></div>
       </section>
       <p className="example-back"><a href={`${base}examples/`}>← Explore all examples</a></p>
