@@ -39,6 +39,11 @@ function App() {
         <span>Scroll an archive until the sentinel enters view. Intersection triggers the next validated page and appends it to the same host.</span>
         <span className="feature-tags">Recast · onIntersect · throttle · append · Redact</span>
       </a>
+      <a className="example-feature" href={`${base}examples/inline-validation/`}>
+        <span className="step">05 / LIVE RECIPE</span><strong>Inline Validation <span aria-hidden="true">↗</span></strong>
+        <span>Check an invented catalog code while typing. The server validates again before reserving it and morphs accessible feedback.</span>
+        <span className="feature-tags">Rewire · QUERY · debounce · POST · Redact</span>
+      </a>
       <section className="attribute-guide" aria-labelledby="attributes-title">
         <span className="under-label">CORE ATTRIBUTE MAP</span>
         <h2 id="attributes-title">The browser’s vocabulary, in JSX.</h2>

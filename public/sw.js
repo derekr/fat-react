@@ -8,6 +8,7 @@ const scrollProgress = new Map();
 const encoder = new TextEncoder();
 const initialContact = { firstName: 'Juniper', lastName: 'Comet', role: 'Cartographer' };
 let contact = { ...initialContact };
+const reservedCodes = new Set(['MAPS-04', 'SKYB-09']);
 const contacts = [
   ['Juniper', 'Comet'], ['Clover', 'Sparrow'], ['Aster', 'Moon'],
   ['Maple', 'Finch'], ['Indigo', 'Wren'], ['Willow', 'Cloud'],
@@ -125,6 +126,44 @@ function handlePages(request, url, route, clientId, kind) {
     patchSignals({ [pageSignal]: page + 1, [hasMoreSignal]: (page + 1) * loadBatchSize < loadItems.length }));
 }
 
+async function handleCatalog(request, url) {
+  if (request.method !== 'QUERY' && request.method !== 'POST') return new Response('Not found', { status: 404 });
+  let input;
+  let signals;
+  try {
+    input = JSON.parse(url.searchParams.get('redactionInput') || 'null');
+    signals = await request.json();
+  } catch { return new Response('Invalid validation request', { status: 400 }); }
+  if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).length ||
+      !signals || typeof signals !== 'object' || Array.isArray(signals) ||
+      typeof signals.catalogCode !== 'string' || signals.catalogCode.length > 16) {
+    return new Response('Invalid validation request', { status: 400 });
+  }
+
+  const code = signals.catalogCode.trim().toUpperCase();
+  let kind;
+  let message;
+  if (!code) {
+    kind = 'neutral';
+    message = 'Enter a catalog code to check it.';
+  } else if (!/^[A-Z]{4}-[0-9]{2}$/.test(code)) {
+    kind = 'error';
+    message = 'Use four letters, a hyphen, and two digits (for example, FERN-27).';
+  } else if (reservedCodes.has(code)) {
+    kind = 'error';
+    message = `${code} is already reserved. Try another code.`;
+  } else if (request.method === 'POST') {
+    reservedCodes.add(code);
+    kind = 'success';
+    message = `${code} was reserved in this demo.`;
+  } else {
+    kind = 'success';
+    message = `${code} is available.`;
+  }
+  const html = `<p class="validation-message ${kind}" role="status">${escapeHtml(message)}</p>`;
+  return eventStream(patchSignals({ catalogInvalid: kind === 'error' }) + patch(html, 'catalog-feedback'));
+}
+
 function contactSignals(editing) {
   return {
     contactEditing: editing,
@@ -227,6 +266,7 @@ function openPipe(clientId) {
 
 async function handle(request, url, clientId) {
   const route = url.pathname.slice(prefix.length);
+  if (route === 'catalog/check') return handleCatalog(request, url);
   if (route === 'scroll' || route === 'scroll/more') return handlePages(request, url, route, clientId, 'scroll');
   if (route === 'load' || route === 'load/more') return handlePages(request, url, route, clientId, 'load');
   if (route === 'contact' || route === 'contact/edit' || route === 'contact/reset') {

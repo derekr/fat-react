@@ -45,7 +45,7 @@ export async function bootstrap(app: ReactNode, scope = import.meta.env.BASE_URL
     }
     const script = document.createElement('script');
     script.type = 'module';
-    script.src = 'https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.0-RC.8/bundles/datastar.js';
+    script.src = 'https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.4/bundles/datastar.js';
     await new Promise<void>((resolve, reject) => {
       script.onload = () => resolve();
       script.onerror = () => reject(new Error('Could not start the live preview.'));

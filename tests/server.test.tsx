@@ -34,6 +34,20 @@ test('a GET redaction reads signals from the query string and validates action i
   assert.equal((await read(new Request(url, { method: 'POST' }))).status, 404);
 });
 
+test('a QUERY redaction reads JSON signals from the request body', async () => {
+  const check = defineRedaction({ path: '/api/check', method: 'query', schema: z.object({ kind: z.literal('catalog') }) });
+  const handler = createRedactionHandler(check, 'feedback', ({ signals }) => {
+    const { code } = z.object({ code: z.string().max(16) }).parse(signals);
+    return <p>{code}</p>;
+  });
+  const url = 'https://example.test/api/check?redactionInput=%7B%22kind%22%3A%22catalog%22%7D';
+  const response = await handler(new Request(url, { method: 'QUERY', body: JSON.stringify({ code: '<TEST-01>' }) }));
+  assert.equal(response.status, 200);
+  assert.match(await response.text(), /data: elements <p>&lt;TEST-01&gt;<\/p>/);
+  assert.equal((await handler(new Request(url, { method: 'GET' }))).status, 404);
+  assert.equal((await handler(new Request(url, { method: 'QUERY', body: 'not-json' }))).status, 400);
+});
+
 test('a server handler can append a validated page of rows to a Redact host', async () => {
   const load = defineRedaction({ path: '/api/more', method: 'get', schema: z.object({ page: z.number().int().min(1).max(3) }) });
   const handler = createRedactionHandler(load, 'load-items', ({ input }) => <article>Page {input.page}</article>, 'append');
