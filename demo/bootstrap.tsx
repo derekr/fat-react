@@ -1,7 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import type { ReactNode } from 'react';
 
-export async function bootstrap(app: ReactNode) {
+export async function bootstrap(app: ReactNode, scope = import.meta.env.BASE_URL) {
   createRoot(document.getElementById('root')!).render(app);
   if (!('serviceWorker' in navigator)) {
     document.body.dataset.error = 'Service workers are needed for this static demo.';
@@ -10,13 +10,21 @@ export async function bootstrap(app: ReactNode) {
 
   try {
     const base = import.meta.env.BASE_URL;
-    const registration = await navigator.serviceWorker.register(`${base}sw.js`, { scope: base });
+    const registration = await navigator.serviceWorker.register(`${base}sw.js`, { scope });
     await navigator.serviceWorker.ready;
     if (registration.waiting) {
       registration.waiting.postMessage('SKIP_WAITING');
     }
-    if (!navigator.serviceWorker.controller) {
-      await new Promise<void>((resolve) => navigator.serviceWorker.addEventListener('controllerchange', () => resolve(), { once: true }));
+    if (navigator.serviceWorker.controller !== registration.active) {
+      await new Promise<void>((resolve) => {
+        const check = () => {
+          if (navigator.serviceWorker.controller !== registration.active) return;
+          navigator.serviceWorker.removeEventListener('controllerchange', check);
+          resolve();
+        };
+        navigator.serviceWorker.addEventListener('controllerchange', check);
+        check();
+      });
     }
     const script = document.createElement('script');
     script.type = 'module';

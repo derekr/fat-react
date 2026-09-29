@@ -46,4 +46,4 @@ function App() {
   </div>;
 }
 
-void bootstrap(<App />);
+void bootstrap(<App />, `${base}examples/`);

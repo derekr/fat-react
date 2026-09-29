@@ -6,10 +6,12 @@ import './style.css';
 import './examples.css';
 
 const base = import.meta.env.BASE_URL;
-const search = defineRedaction({ path: `${base}__redact/search`, method: 'get', schema: z.object({}) });
+const exampleBase = `${base}examples/`;
+const search = defineRedaction({ path: `${exampleBase}__redact/search`, method: 'get', schema: z.object({}) });
 const example = `const base = import.meta.env.BASE_URL;
+const exampleBase = \`\${base}examples/\`;
 const search = defineRedaction({
-  path: \`\${base}__redact/search\`,
+  path: \`\${exampleBase}__redact/search\`,
   method: 'get',
   schema: z.object({}),
 });
@@ -27,7 +29,7 @@ const search = defineRedaction({
   <input type="search" placeholder="Search contacts…" />
 </Rewire>
 
-<Redact id="contact-results" src={\`\${base}__redact/search\`} />`;
+<Redact id="contact-results" src={\`\${exampleBase}__redact/search\`} />`;
 
 function App() {
   useEffect(() => {
@@ -56,7 +58,7 @@ function App() {
           <div className="panel-heading"><span className="step">02 / THE SERVER VIEW</span><span className="live"><span /> LIVE HTML</span></div>
           <h2 id="results-title">Matching contacts.</h2>
           <p className="panel-description">Each result is a full HTML fragment, patched into the same host.</p>
-          <Redact id="contact-results" className="search-region" src={`${base}__redact/search`} fallback="Loading contacts…" />
+          <Redact id="contact-results" className="search-region" src={`${exampleBase}__redact/search`} fallback="Loading contacts…" />
         </section>
       </div>
       <section className="code-section" data-syntax-theme="dracula" aria-labelledby="search-code-title">
@@ -69,4 +71,4 @@ function App() {
   </div>;
 }
 
-void bootstrap(<App />);
+void bootstrap(<App />, exampleBase);

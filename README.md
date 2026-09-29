@@ -11,7 +11,7 @@ npm run dev
 
 The interactive demo uses a service worker as a temporary mock backend, so it works on static GitHub Pages. It includes a button with `asChild`, a delegated wrapper button, a form, and one long-lived read stream. The demo store may reset whenever the browser restarts the service worker.
 
-The [examples gallery](https://derekr.github.io/redact/examples/) starts with [Active Search](https://derekr.github.io/redact/examples/active-search/), which exercises bound inputs, debounced GET actions, and targeted HTML morphs. Its core-attribute map shows which directives can be expressed with JSX. Pro-only features are not included.
+The [examples gallery](https://derekr.github.io/redact/examples/) starts with [Active Search](https://derekr.github.io/redact/examples/active-search/), which exercises bound inputs, debounced GET actions, and targeted HTML morphs. The examples use their own service-worker scope under `/redact/examples/`, independent of the home demo stream. Its core-attribute map shows which directives can be expressed with JSX. Pro-only features are not included.
 
 ## API sketch
 
