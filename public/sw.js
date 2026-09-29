@@ -4,6 +4,7 @@ const scope = new URL(self.registration.scope);
 const prefix = `${scope.pathname}__redact/`;
 const subscribers = new Map();
 const loadProgress = new Map();
+const scrollProgress = new Map();
 const encoder = new TextEncoder();
 const initialContact = { firstName: 'Juniper', lastName: 'Comet', role: 'Cartographer' };
 let contact = { ...initialContact };
@@ -90,7 +91,12 @@ function renderLoadItems(page) {
     </article>`).join('');
 }
 
-function handleLoad(request, url, route, clientId) {
+function handlePages(request, url, route, clientId, kind) {
+  const scrolling = kind === 'scroll';
+  const progress = scrolling ? scrollProgress : loadProgress;
+  const target = scrolling ? 'scroll-items' : 'load-items';
+  const pageSignal = scrolling ? 'scrollPage' : 'loadPage';
+  const hasMoreSignal = scrolling ? 'scrollHasMore' : 'loadHasMore';
   if (request.method !== 'GET') return new Response('Not found', { status: 404 });
   let input;
   let signals;
@@ -103,18 +109,20 @@ function handleLoad(request, url, route, clientId) {
     return new Response('Invalid load request', { status: 400 });
   }
 
-  if (route === 'load') {
-    loadProgress.set(clientId, 1);
-    return eventStream(patch(renderLoadItems(0), 'load-items') + patchSignals({ loadPage: 1, loadHasMore: true }));
+  if (route === kind) {
+    progress.set(clientId, 1);
+    return eventStream(patch(renderLoadItems(0), target) + patchSignals({
+      [pageSignal]: 1, [hasMoreSignal]: true, ...(scrolling ? { scrollReady: true } : {}),
+    }));
   }
-  const page = signals.loadPage;
+  const page = signals[pageSignal];
   if (!Number.isInteger(page) || page < 1 || page >= Math.ceil(loadItems.length / loadBatchSize)) {
     return new Response('Invalid page', { status: 400 });
   }
-  if (loadProgress.get(clientId) !== page) return new Response('Page out of sequence', { status: 409 });
-  loadProgress.set(clientId, page + 1);
-  return eventStream(patch(renderLoadItems(page), 'load-items', 'append') +
-    patchSignals({ loadPage: page + 1, loadHasMore: (page + 1) * loadBatchSize < loadItems.length }));
+  if (progress.get(clientId) !== page) return new Response('Page out of sequence', { status: 409 });
+  progress.set(clientId, page + 1);
+  return eventStream(patch(renderLoadItems(page), target, 'append') +
+    patchSignals({ [pageSignal]: page + 1, [hasMoreSignal]: (page + 1) * loadBatchSize < loadItems.length }));
 }
 
 function contactSignals(editing) {
@@ -219,7 +227,8 @@ function openPipe(clientId) {
 
 async function handle(request, url, clientId) {
   const route = url.pathname.slice(prefix.length);
-  if (route === 'load' || route === 'load/more') return handleLoad(request, url, route, clientId);
+  if (route === 'scroll' || route === 'scroll/more') return handlePages(request, url, route, clientId, 'scroll');
+  if (route === 'load' || route === 'load/more') return handlePages(request, url, route, clientId, 'load');
   if (route === 'contact' || route === 'contact/edit' || route === 'contact/reset') {
     return handleContact(request, url, route);
   }

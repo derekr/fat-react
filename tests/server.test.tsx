@@ -3,8 +3,8 @@ import { test } from 'node:test';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { z } from 'zod';
-import { defineRedaction, Redact, Recast, Repipe, Rewire } from '../src';
-import { eventAttribute } from '../src/directives';
+import { defineRedaction, redactionExpression, Redact, Recast, Repipe, Rewire } from '../src';
+import { eventAttribute, intersectAttribute } from '../src/directives';
 import { createRedactionHandler } from '../src/server';
 
 const action = defineRedaction({ path: '/api/note', schema: z.object({ section: z.literal('basket') }) });
@@ -80,4 +80,18 @@ test('Recast preserves core directives and refuses conflicting event attributes'
   assert.throws(() => renderToStaticMarkup(<Recast asChild events={[{ event: 'click', expression: '$count++' }]}>
     <button data-on:click="old">Count</button>
   </Recast>), /already defines/);
+});
+
+test('Recast attaches typed intersection modifiers to a safely quoted action', () => {
+  const more = defineRedaction({ path: '/api/more', method: 'get', schema: z.object({ page: z.number().int() }) });
+  const html = renderToStaticMarkup(<Recast asChild onIntersect={{
+    expression: redactionExpression(more, { page: 2 }, { filterSignals: { include: /^scrollPage$/ } }),
+    half: true, throttle: 200,
+  }}><div>More</div></Recast>);
+  assert.match(html, /data-on-intersect__half__throttle\.200ms="@get/);
+  assert.match(html, /redactionInput=%7B%22page%22%3A2%7D/);
+  assert.match(html, /&quot;include&quot;:\/\^scrollPage\$\//);
+  assert.equal(intersectAttribute({ threshold: 25, once: true }), 'data-on-intersect__once__threshold.25');
+  assert.throws(() => intersectAttribute({ half: true, full: true }), /one intersection visibility threshold/);
+  assert.throws(() => intersectAttribute({ threshold: 101 }), /integer percentage/);
 });

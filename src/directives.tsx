@@ -21,6 +21,17 @@ export type EventModifiers = {
   stop?: boolean;
 };
 
+export type IntersectionModifiers = Pick<EventModifiers,
+  'once' | 'delay' | 'debounce' | 'debounceLeading' | 'debounceNoTrailing' |
+  'throttle' | 'throttleNoLeading' | 'throttleTrailing' | 'viewTransition'
+> & {
+  exit?: boolean;
+  half?: boolean;
+  full?: boolean;
+  /** Percentage visible, from 1 to 100. Cannot be combined with half or full. */
+  threshold?: number;
+};
+
 function duration(value: number, name: string): string {
   if (!Number.isSafeInteger(value) || value < 0) throw new Error(`${name} must be a non-negative integer in milliseconds.`);
   return `${value}ms`;
@@ -53,6 +64,30 @@ export function eventAttribute(event: string, modifiers: EventModifiers = {}): s
   return parts.join('__');
 }
 
+export function intersectAttribute(modifiers: IntersectionModifiers = {}): string {
+  const { once, exit, half, full, threshold, delay, debounce, debounceLeading, debounceNoTrailing,
+    throttle, throttleNoLeading, throttleTrailing, viewTransition } = modifiers;
+  if (Number(half || false) + Number(full || false) + Number(threshold !== undefined) > 1) {
+    throw new Error('Choose only one intersection visibility threshold.');
+  }
+  if (threshold !== undefined && (!Number.isInteger(threshold) || threshold < 1 || threshold > 100)) {
+    throw new Error('Intersection threshold must be an integer percentage from 1 to 100.');
+  }
+  if (debounce === undefined && (debounceLeading || debounceNoTrailing)) throw new Error('Debounce edges require debounce.');
+  if (throttle === undefined && (throttleNoLeading || throttleTrailing)) throw new Error('Throttle edges require throttle.');
+  const parts = ['data-on-intersect'];
+  if (once) parts.push('once');
+  if (exit) parts.push('exit');
+  if (half) parts.push('half');
+  if (full) parts.push('full');
+  if (threshold !== undefined) parts.push(`threshold.${threshold}`);
+  if (delay !== undefined) parts.push(`delay.${duration(delay, 'delay')}`);
+  if (debounce !== undefined) parts.push(`debounce.${duration(debounce, 'debounce')}${debounceLeading ? '.leading' : ''}${debounceNoTrailing ? '.notrailing' : ''}`);
+  if (throttle !== undefined) parts.push(`throttle.${duration(throttle, 'throttle')}${throttleNoLeading ? '.noleading' : ''}${throttleTrailing ? '.trailing' : ''}`);
+  if (viewTransition) parts.push('viewtransition');
+  return parts.join('__');
+}
+
 function keyedAttributes(prefix: string, values: Record<string, string>, result: Record<string, string>) {
   for (const [name, expression] of Object.entries(values)) {
     if (!/^[a-z][a-z0-9-]*$/i.test(name)) throw new Error(`Invalid ${prefix} key: ${name}`);
@@ -75,7 +110,7 @@ export type CoreDirectives = {
   ignoreMorph?: boolean;
   indicator?: string;
   jsonSignals?: boolean | { include?: RegExp; exclude?: RegExp };
-  onIntersect?: string;
+  onIntersect?: string | ({ expression: string } & IntersectionModifiers);
   onInterval?: string;
   onSignalPatch?: string;
   onSignalPatchFilter?: { include?: RegExp; exclude?: RegExp };
@@ -101,7 +136,13 @@ export function coreAttributes(directives: CoreDirectives): Record<string, strin
   if (directives.ignoreMorph) attributes['data-ignore-morph'] = '';
   if (directives.indicator) attributes['data-indicator'] = directives.indicator;
   if (directives.jsonSignals) attributes['data-json-signals'] = directives.jsonSignals === true ? '' : serializeOptions(directives.jsonSignals);
-  if (directives.onIntersect) attributes['data-on-intersect'] = directives.onIntersect;
+  if (directives.onIntersect) {
+    if (typeof directives.onIntersect === 'string') attributes['data-on-intersect'] = directives.onIntersect;
+    else {
+      const { expression, ...modifiers } = directives.onIntersect;
+      attributes[intersectAttribute(modifiers)] = expression;
+    }
+  }
   if (directives.onInterval) attributes['data-on-interval'] = directives.onInterval;
   if (directives.onSignalPatch) attributes['data-on-signal-patch'] = directives.onSignalPatch;
   if (directives.onSignalPatchFilter) attributes['data-on-signal-patch-filter'] = serializeOptions(directives.onSignalPatchFilter);

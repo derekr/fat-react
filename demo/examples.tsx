@@ -34,6 +34,11 @@ function App() {
         <span>Load the next batch of cards with an SSE append patch. Previously loaded items stay put, and the server validates each page.</span>
         <span className="feature-tags">Rewire · indicator · filterSignals · append · Redact</span>
       </a>
+      <a className="example-feature" href={`${base}examples/infinite-scroll/`}>
+        <span className="step">04 / LIVE RECIPE</span><strong>Infinite Scroll <span aria-hidden="true">↗</span></strong>
+        <span>Scroll an archive until the sentinel enters view. Intersection triggers the next validated page and appends it to the same host.</span>
+        <span className="feature-tags">Recast · onIntersect · throttle · append · Redact</span>
+      </a>
       <section className="attribute-guide" aria-labelledby="attributes-title">
         <span className="under-label">CORE ATTRIBUTE MAP</span>
         <h2 id="attributes-title">The browser’s vocabulary, in JSX.</h2>

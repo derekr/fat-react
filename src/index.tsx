@@ -6,7 +6,7 @@ import { actionExpression, actionUrl, type RequestOptions } from './protocol';
 export { redactPatch, redactResponse, redactionAck } from './protocol';
 export type { RedactPatchMode } from './protocol';
 export { Recast } from './directives';
-export type { CoreDirectives, EventModifiers } from './directives';
+export type { CoreDirectives, EventModifiers, IntersectionModifiers } from './directives';
 
 export type Redaction<Schema extends z.ZodType = z.ZodType> = {
   path: string;
@@ -17,6 +17,13 @@ export type Redaction<Schema extends z.ZodType = z.ZodType> = {
 /** A shared action description. Keep the handler on the server; never ship it to the browser. */
 export function defineRedaction<Schema extends z.ZodType>(action: Redaction<Schema>): Redaction<Schema> {
   return action;
+}
+
+/** Build a safely quoted Datastar action expression for a non-event directive. */
+export function redactionExpression<Schema extends z.ZodType>(
+  action: Redaction<Schema>, input: z.input<Schema>, options?: RequestOptions,
+): string {
+  return actionExpression(action.method ?? 'post', actionUrl(action.path, input), options);
 }
 
 export type RewireProps<Schema extends z.ZodType> = EventModifiers & RequestOptions & {
