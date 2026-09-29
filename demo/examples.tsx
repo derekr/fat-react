@@ -49,6 +49,11 @@ function App() {
         <span>Select invented archive entries and activate or deactivate them together. The server validates the selection and morphs the table.</span>
         <span className="feature-tags">Recast · bind · Rewire · PUT · Redact</span>
       </a>
+      <a className="example-feature" href={`${base}examples/progress-bar/`}>
+        <span className="step">07 / LIVE RECIPE</span><strong>Progress Bar <span aria-hidden="true">↗</span></strong>
+        <span>Start a sample archive job and watch one response stream progress updates and its finished view into the same host.</span>
+        <span className="feature-tags">Rewire · indicator · POST · streaming SSE · Redact</span>
+      </a>
       <section className="attribute-guide" aria-labelledby="attributes-title">
         <span className="under-label">CORE ATTRIBUTE MAP</span>
         <h2 id="attributes-title">The browser’s vocabulary, in JSX.</h2>

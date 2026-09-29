@@ -46,3 +46,46 @@ test('bulk update rejects malformed and unknown selections before changing rows'
   assert.match(deactivated, /Select Field notes[^]*?<span class="bulk-badge inactive">Inactive<\/span>/);
   assert.equal((await send('bulk/activate', 'POST', valid)).status, 404);
 });
+
+test('progress job validates input and streams intermediate patches before completion', async () => {
+  const listeners = new Map();
+  const scope = 'https://example.test/redact/examples/progress-bar/';
+  runInNewContext(readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8'), {
+    self: {
+      registration: { scope },
+      addEventListener(name, callback) { listeners.set(name, callback); },
+    },
+    URL, Response, TextEncoder, ReadableStream, setInterval, clearInterval,
+  });
+  async function start(method, input, body = '{}') {
+    const url = `${scope}__redact/progress/run?redactionInput=${encodeURIComponent(input)}`;
+    let response;
+    listeners.get('fetch')({ request: new Request(url, {
+      method, ...(method === 'POST' ? { body } : {}),
+    }), clientId: 'sample-tab', respondWith(value) { response = value; } });
+    return response;
+  }
+
+  assert.equal((await start('GET', '{"archive":"sample"}')).status, 404);
+  assert.equal((await start('POST', '{"archive":"unknown"}')).status, 400);
+  assert.equal((await start('POST', '{"archive":"sample","extra":true}')).status, 400);
+  assert.equal((await start('POST', '{"archive":"sample"}', '{"unexpected":true}')).status, 400);
+
+  const response = await start('POST', '{"archive":"sample"}');
+  assert.equal(response.headers.get('content-type'), 'text/event-stream; charset=utf-8');
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const first = decoder.decode((await reader.read()).value);
+  assert.match(first, /value="0"/);
+  assert.match(first, /selector #progress-result/);
+  const second = decoder.decode((await reader.read()).value);
+  assert.match(second, /value="20"/);
+  const rest = [];
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    rest.push(decoder.decode(value));
+  }
+  assert.deepEqual(rest.map((chunk) => Number(chunk.match(/value="(\d+)"/)?.[1])), [40, 60, 80, 100]);
+  assert.match(rest.at(-1), /Archive ready\. This was a simulated job\./);
+});

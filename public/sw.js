@@ -107,6 +107,55 @@ function renderBulkEntries(message = 'Select entries, then choose an action.') {
     <p class="bulk-message" role="status">${escapeHtml(message)}</p></div>`;
 }
 
+function renderProgress(value, label) {
+  return `<div class="progress-card">
+    <div class="progress-head"><span>Sample archive</span><strong>${value}%</strong></div>
+    <progress max="100" value="${value}" aria-label="Sample archive progress">${value}%</progress>
+    <p class="progress-caption">${escapeHtml(label)}</p>
+    ${value === 100 ? '<p class="progress-finished">Archive ready. This was a simulated job.</p>' : ''}
+  </div>`;
+}
+
+async function handleProgress(request, url) {
+  if (request.method !== 'POST') return new Response('Not found', { status: 404 });
+  let input;
+  let signals;
+  try {
+    input = JSON.parse(url.searchParams.get('redactionInput') || 'null');
+    signals = await request.json();
+  } catch { return new Response('Invalid job request', { status: 400 }); }
+  if (!input || typeof input !== 'object' || Array.isArray(input) ||
+      Object.keys(input).length !== 1 || input.archive !== 'sample' ||
+      !signals || typeof signals !== 'object' || Array.isArray(signals) || Object.keys(signals).length) {
+    return new Response('Invalid job request', { status: 400 });
+  }
+
+  const stages = [
+    [20, 'Collecting sample entries…'],
+    [40, 'Checking the index…'],
+    [60, 'Organizing the pages…'],
+    [80, 'Preparing the summary…'],
+    [100, 'Processing complete.'],
+  ];
+  let timer;
+  const body = new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode(patch(renderProgress(0, 'Starting the sample job…'), 'progress-result')));
+      let step = 0;
+      timer = setInterval(() => {
+        const [value, label] = stages[step++];
+        controller.enqueue(encoder.encode(patch(renderProgress(value, label), 'progress-result')));
+        if (step === stages.length) {
+          clearInterval(timer);
+          controller.close();
+        }
+      }, 450);
+    },
+    cancel() { clearInterval(timer); },
+  });
+  return eventStream(body);
+}
+
 async function handleBulk(request, url, route) {
   if (route === 'bulk' ? request.method !== 'GET' : request.method !== 'PUT') {
     return new Response('Not found', { status: 404 });
@@ -314,6 +363,7 @@ function openPipe(clientId) {
 
 async function handle(request, url, clientId) {
   const route = url.pathname.slice(prefix.length);
+  if (route === 'progress/run') return handleProgress(request, url);
   if (route === 'bulk' || route === 'bulk/activate' || route === 'bulk/deactivate') return handleBulk(request, url, route);
   if (route === 'catalog/check') return handleCatalog(request, url);
   if (route === 'scroll' || route === 'scroll/more') return handlePages(request, url, route, clientId, 'scroll');
