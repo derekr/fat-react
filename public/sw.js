@@ -9,6 +9,12 @@ const encoder = new TextEncoder();
 const initialContact = { firstName: 'Juniper', lastName: 'Comet', role: 'Cartographer' };
 let contact = { ...initialContact };
 const reservedCodes = new Set(['MAPS-04', 'SKYB-09']);
+const bulkEntries = [
+  { id: 'note01', name: 'Field notes', active: false },
+  { id: 'note02', name: 'Sketchbook', active: true },
+  { id: 'note03', name: 'Seed catalog', active: false },
+  { id: 'note04', name: 'Paper map', active: true },
+];
 const contacts = [
   ['Juniper', 'Comet'], ['Clover', 'Sparrow'], ['Aster', 'Moon'],
   ['Maple', 'Finch'], ['Indigo', 'Wren'], ['Willow', 'Cloud'],
@@ -90,6 +96,48 @@ function renderLoadItems(page) {
       <span class="load-index">${String(page * loadBatchSize + index + 1).padStart(2, '0')}</span>
       <div><h3>${escapeHtml(title)}</h3><p>${escapeHtml(description)}</p></div>
     </article>`).join('');
+}
+
+function renderBulkEntries(message = 'Select entries, then choose an action.') {
+  const rows = bulkEntries.map(({ id, name, active }) => `<tr>
+    <td><input type="checkbox" aria-label="Select ${escapeHtml(name)}" data-bind:bulk-selection.${id} data-attr:disabled="$_bulkSaving"></td>
+    <th scope="row">${escapeHtml(name)}</th><td><span class="bulk-badge ${active ? 'active' : 'inactive'}">${active ? 'Active' : 'Inactive'}</span></td>
+  </tr>`).join('');
+  return `<div class="bulk-table"><table><thead><tr><th scope="col">Select</th><th scope="col">Entry</th><th scope="col">Status</th></tr></thead><tbody>${rows}</tbody></table>
+    <p class="bulk-message" role="status">${escapeHtml(message)}</p></div>`;
+}
+
+async function handleBulk(request, url, route) {
+  if (route === 'bulk' ? request.method !== 'GET' : request.method !== 'PUT') {
+    return new Response('Not found', { status: 404 });
+  }
+  let input;
+  try { input = JSON.parse(url.searchParams.get('redactionInput') || (route === 'bulk' ? '{}' : 'null')); }
+  catch { return new Response('Invalid action input', { status: 400 }); }
+  if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).length) {
+    return new Response('Invalid action input', { status: 400 });
+  }
+  if (route === 'bulk') return eventStream(patch(renderBulkEntries(), 'bulk-entries'));
+  if (route !== 'bulk/activate' && route !== 'bulk/deactivate') return new Response('Not found', { status: 404 });
+
+  let signals;
+  try { signals = await request.json(); }
+  catch { return new Response('Invalid selection', { status: 400 }); }
+  const selection = signals?.bulkSelection;
+  if (!signals || typeof signals !== 'object' || Array.isArray(signals) ||
+      !selection || typeof selection !== 'object' || Array.isArray(selection) ||
+      Object.keys(selection).length !== bulkEntries.length ||
+      bulkEntries.some(({ id }) => typeof selection[id] !== 'boolean') ||
+      Object.keys(selection).some((id) => !bulkEntries.some((entry) => entry.id === id))) {
+    return new Response('Invalid selection', { status: 400 });
+  }
+  const selected = bulkEntries.filter(({ id }) => selection[id]);
+  if (!selected.length) return new Response('Select at least one entry', { status: 400 });
+  const active = route === 'bulk/activate';
+  for (const entry of selected) entry.active = active;
+  const reset = Object.fromEntries(bulkEntries.map(({ id }) => [id, false]));
+  return eventStream(patch(renderBulkEntries(`${selected.length} ${selected.length === 1 ? 'entry' : 'entries'} ${active ? 'activated' : 'deactivated'}.`), 'bulk-entries') +
+    patchSignals({ bulkSelection: reset }));
 }
 
 function handlePages(request, url, route, clientId, kind) {
@@ -266,6 +314,7 @@ function openPipe(clientId) {
 
 async function handle(request, url, clientId) {
   const route = url.pathname.slice(prefix.length);
+  if (route === 'bulk' || route === 'bulk/activate' || route === 'bulk/deactivate') return handleBulk(request, url, route);
   if (route === 'catalog/check') return handleCatalog(request, url);
   if (route === 'scroll' || route === 'scroll/more') return handlePages(request, url, route, clientId, 'scroll');
   if (route === 'load' || route === 'load/more') return handlePages(request, url, route, clientId, 'load');

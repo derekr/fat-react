@@ -44,6 +44,11 @@ function App() {
         <span>Check an invented catalog code while typing. The server validates again before reserving it and morphs accessible feedback.</span>
         <span className="feature-tags">Rewire · QUERY · debounce · POST · Redact</span>
       </a>
+      <a className="example-feature" href={`${base}examples/bulk-update/`}>
+        <span className="step">06 / LIVE RECIPE</span><strong>Bulk Update <span aria-hidden="true">↗</span></strong>
+        <span>Select invented archive entries and activate or deactivate them together. The server validates the selection and morphs the table.</span>
+        <span className="feature-tags">Recast · bind · Rewire · PUT · Redact</span>
+      </a>
       <section className="attribute-guide" aria-labelledby="attributes-title">
         <span className="under-label">CORE ATTRIBUTE MAP</span>
         <h2 id="attributes-title">The browser’s vocabulary, in JSX.</h2>

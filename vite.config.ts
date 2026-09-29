@@ -19,6 +19,7 @@ export default defineConfig(({ command }) => ({
     clickToLoad: fileURLToPath(new URL('./examples/click-to-load/index.html', import.meta.url)),
     infiniteScroll: fileURLToPath(new URL('./examples/infinite-scroll/index.html', import.meta.url)),
     inlineValidation: fileURLToPath(new URL('./examples/inline-validation/index.html', import.meta.url)),
+    bulkUpdate: fileURLToPath(new URL('./examples/bulk-update/index.html', import.meta.url)),
   } } },
   plugins: [{
     name: 'microlighter-grammars',
