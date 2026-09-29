@@ -1,4 +1,4 @@
-# fat/react
+# Redact
 
 Server components without reinventing the browser. Render JSX to HTML on the server, stream patches over SSE, and morph a stable host in an existing React app.
 
@@ -9,29 +9,32 @@ npm ci
 npm run dev
 ```
 
-The interactive demo uses a service worker as a temporary mock backend, so it works on static GitHub Pages. It includes a button with `asChild`, a delegated wrapper button, and a form whose value is sent to the server. The demo store may reset whenever the browser restarts the service worker.
+The interactive demo uses a service worker as a temporary mock backend, so it works on static GitHub Pages. It includes a button with `asChild`, a delegated wrapper button, a form, and one long-lived read stream. The demo store may reset whenever the browser restarts the service worker.
 
 ## API sketch
 
 ```tsx
-const add = defineFatAction({
+const add = defineRedaction({
   path: '/api/basket/add',
   schema: z.object({ item: z.string() }),
 });
 
-<FatWire asChild action={add} input={{ item: 'peach' }}>
+<Rewire asChild action={add} input={{ item: 'peach' }}>
   <Button>Add a peach</Button>
-</FatWire>
+</Rewire>
 
-<Fat id="basket" src="/api/basket" />
+<Repipe src="/api/stream" />
+<Redact id="basket" />
 ```
 
-`input` is checked by TypeScript against the action schema. A custom `Button` must forward DOM attributes for `asChild`. Without `asChild`, `FatWire` delegates the event from a `div` wrapper and works with opaque children. Use `onSubmit` to wire a form; form fields can use `data-bind:*` signals.
+`input` is checked by TypeScript against the action schema. A custom `Button` must forward DOM attributes for `asChild`. Without `asChild`, `Rewire` delegates the event from a `div` wrapper and works with opaque children. Use `onSubmit` to wire a form; form fields can use `data-bind:*` signals.
 
-The action description is **not** a server action implementation. The server must validate the request against the schema, authorize the operation, and render HTML. `createFatHandler(action, targetId, render)` in `src/server.tsx` handles request parsing, schema validation, server-side JSX rendering and a single SSE patch response. `fatResponse(targetId, html)` constructs a patch response directly; `fatPatch(targetId, html)` constructs an event for longer-lived streams. Keep the handler and any private state in server-only code. A browser-delivered script cannot carry an executable server closure.
+`Repipe` opens a long-lived SSE read request for the page. The backend can send zero or more `redactPatch(targetId, html)` events on it, targeting any `Redact` host. `Rewire` sends short-lived write requests; after publishing the new state to the read stream, a write endpoint can return `redactionAck()` (a valid, empty SSE response). For a simpler request/response setup, omit `Repipe`, give `Redact` a `src` for its initial GET, and return a patch directly from each action.
+
+The action description is **not** a server action implementation. The server must validate the request against the schema, authorize the operation, and render HTML. `createRedactionHandler(action, targetId, render)` in `src/server.tsx` handles request parsing, schema validation, server-side JSX rendering and a single SSE patch response. `redactResponse(targetId, html)` constructs a patch response directly; `redactPatch(targetId, html)` constructs an event for longer-lived streams. Keep the handler and any private state in server-only code. A browser-delivered script cannot carry an executable server closure.
 
 ```tsx
-const handleAdd = createFatHandler(add, 'basket', async ({ input, request }) => {
+const handleAdd = createRedactionHandler(add, 'basket', async ({ input, request }) => {
   const user = await authenticate(request);
   await basketFor(user).add(input.item);
   return <Basket items={await basketFor(user).items()} />;

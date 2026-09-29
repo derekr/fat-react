@@ -1,7 +1,9 @@
 // Demo-only mock backend. State is transient and may reset when the browser restarts the worker.
 const store = { quantity: 2, note: '', revision: 0 };
 const scope = new URL(self.registration.scope);
-const prefix = `${scope.pathname}__fat/`;
+const prefix = `${scope.pathname}__redact/`;
+const subscribers = new Map();
+const encoder = new TextEncoder();
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
@@ -9,7 +11,7 @@ self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim(
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== scope.origin || !url.pathname.startsWith(prefix)) return;
-  event.respondWith(handle(event.request, url));
+  event.respondWith(handle(event.request, url, event.clientId));
 });
 
 function escapeHtml(value) {
@@ -22,7 +24,7 @@ function patch(html) {
   const lines = html.replaceAll('\r', '').split('\n');
   return [
     'event: datastar-patch-elements',
-    'data: selector #fat-basket',
+    'data: selector #redact-basket',
     'data: mode inner',
     ...lines.map((line) => `data: elements ${line}`),
     '', '',
@@ -44,15 +46,43 @@ function render(status = '') {
   </div>`;
 }
 
-async function handle(request, url) {
+function sendTo(clientId, content) {
+  const controller = subscribers.get(clientId);
+  if (!controller) return;
+  try { controller.enqueue(encoder.encode(content)); }
+  catch { subscribers.delete(clientId); }
+}
+
+function broadcast(content) {
+  for (const clientId of subscribers.keys()) sendTo(clientId, content);
+}
+
+function openPipe(clientId) {
+  let streamController;
+  const body = new ReadableStream({
+    start(controller) {
+      streamController = controller;
+      try { subscribers.get(clientId)?.close(); } catch { /* Already closed. */ }
+      subscribers.set(clientId, controller);
+      controller.enqueue(encoder.encode(patch(render())));
+    },
+    cancel() {
+      if (subscribers.get(clientId) === streamController) subscribers.delete(clientId);
+    },
+  });
+  return eventStream(body);
+}
+
+async function handle(request, url, clientId) {
   const route = url.pathname.slice(prefix.length);
   if (route === 'state' && request.method === 'GET') return eventStream(patch(render()));
+  if (route === 'stream' && request.method === 'GET') return openPipe(clientId);
   if (!['add', 'remove', 'save'].includes(route) || request.method !== 'POST') {
     return new Response('Not found', { status: 404 });
   }
 
   let input;
-  try { input = JSON.parse(url.searchParams.get('fatInput') || 'null'); }
+  try { input = JSON.parse(url.searchParams.get('redactionInput') || 'null'); }
   catch { return new Response('Invalid input', { status: 400 }); }
   if (!input || typeof input !== 'object') return new Response('Invalid input', { status: 400 });
 
@@ -68,13 +98,16 @@ async function handle(request, url) {
     catch { return new Response('Invalid signals', { status: 400 }); }
     const note = signals?.note;
     if (typeof note !== 'string' || !note.trim() || note.length > 80) {
-      return eventStream(patch(render('Please write a note up to 80 characters.')));
+      sendTo(clientId, patch(render('Please write a note up to 80 characters.')));
+      return eventStream('');
     }
     store.note = note.trim();
     status = 'Your note was saved.';
   }
   store.revision++;
-  return eventStream(patch(render(status)) + (route === 'save' ? patchSignals({ note: '' }) : ''));
+  broadcast(patch(render(status)));
+  if (route === 'save') sendTo(clientId, patchSignals({ note: '' }));
+  return eventStream('');
 }
 
 function eventStream(content) {

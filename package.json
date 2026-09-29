@@ -1,12 +1,12 @@
 {
-  "name": "fat-react",
+  "name": "redact",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "preview": "BASE_PATH=/fat-react/ vite preview",
+    "preview": "BASE_PATH=/redact/ vite preview",
     "test": "tsx --test tests/*.test.mjs tests/*.test.tsx"
   },
   "dependencies": {

@@ -1,12 +1,12 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { ReactNode } from 'react';
 import type { z } from 'zod';
-import type { FatAction } from './index';
-import { fatResponse } from './protocol';
+import type { Redaction } from './index';
+import { redactResponse } from './protocol';
 
-/** A framework-independent Request -> Response handler for one Fat action. */
-export function createFatHandler<Schema extends z.ZodType>(
-  action: FatAction<Schema>,
+/** A framework-independent Request -> Response handler for one redaction. */
+export function createRedactionHandler<Schema extends z.ZodType>(
+  action: Redaction<Schema>,
   targetId: string,
   render: (context: { input: z.output<Schema>; signals: unknown; request: Request }) => ReactNode | Promise<ReactNode>,
 ) {
@@ -19,7 +19,7 @@ export function createFatHandler<Schema extends z.ZodType>(
     let rawInput: unknown;
     let signals: unknown;
     try {
-      rawInput = JSON.parse(url.searchParams.get('fatInput') ?? 'null');
+      rawInput = JSON.parse(url.searchParams.get('redactionInput') ?? 'null');
       signals = await request.json();
     } catch {
       return new Response('Invalid request', { status: 400 });
@@ -30,6 +30,6 @@ export function createFatHandler<Schema extends z.ZodType>(
 
     // The caller must authenticate/authorize and validate any signals used in render().
     const element = await render({ input: result.data, signals, request });
-    return fatResponse(targetId, renderToStaticMarkup(element));
+    return redactResponse(targetId, renderToStaticMarkup(element));
   };
 }

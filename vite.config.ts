@@ -8,7 +8,7 @@ const grammarRoot = new URL('./grammars/', pathToFileURL(require.resolve('microl
 const grammars = ['tsx', 'typescript', 'javascript'];
 
 export default defineConfig(({ command }) => ({
-  base: process.env.BASE_PATH || (command === 'serve' ? '/' : '/fat-react/'),
+  base: process.env.BASE_PATH || (command === 'serve' ? '/' : '/redact/'),
   optimizeDeps: { exclude: ['microlighter'] },
   plugins: [{
     name: 'microlighter-grammars',
