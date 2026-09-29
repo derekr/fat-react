@@ -161,7 +161,7 @@ test('dependent selects validate each region and habitat pair', async () => {
   async function send(route, signals, input = route === 'options' ? {} : { generation: 1 }) {
     const url = new URL(`${scope}__redact/habitats/${route}`);
     url.searchParams.set('redactionInput', JSON.stringify(input));
-    url.searchParams.set('datastar', JSON.stringify({ selectionGeneration: 1, ...signals }));
+    url.searchParams.set('datastar', JSON.stringify({ selectionGeneration: 1, noteGeneration: 1, ...signals }));
     let response;
     listeners.get('fetch')({ request: new Request(url), clientId: 'sample-tab',
       respondWith(value) { response = value; } });
@@ -174,14 +174,17 @@ test('dependent selects validate each region and habitat pair', async () => {
   assert.match(options, /id="habitat-choice-1"/);
   assert.match(options, /Sunlit lookout/);
   assert.doesNotMatch(options, /Reed beds/);
-  const note = await (await send('describe', { region: 'ridge', habitat: 'lookout' })).text();
+  assert.doesNotMatch(options, /selector #habitat-description/);
+  const note = await (await send('describe', { region: 'ridge', habitat: 'lookout', noteGeneration: 2 })).text();
   assert.match(note, /bright shelf above the invented valley/);
+  assert.match(note, /selector #habitat-description-2/);
+  assert.match(note, /"noteReadyGeneration":2/);
   for (const [route, signals] of [
     ['options', { region: '__proto__' }],
     ['options', { region: 1 }],
     ['describe', { region: 'ridge', habitat: 'reeds' }],
     ['describe', { region: 'ridge', habitat: 'constructor' }],
-    ['describe', { region: 'grove', habitat: '' }],
+    ['describe', { region: 'grove', habitat: 'unknown' }],
   ]) assert.equal((await send(route, signals)).status, 400);
   for (const input of [{ unexpected: true }, { generation: -1 }, { generation: '1' }]) {
     assert.equal((await send('options', { region: 'ridge' }, input)).status, 400);
@@ -189,21 +192,34 @@ test('dependent selects validate each region and habitat pair', async () => {
   assert.equal((await send('options', { region: 'ridge', selectionGeneration: -1 })).status, 400);
 
   const order = [];
-  const slow = send('options', { region: 'ridge', selectionGeneration: 2 }).then(async (response) => {
+  const slow = send('options', { region: 'ridge', selectionGeneration: 2, noteGeneration: 3 }).then(async (response) => {
     order.push('ridge'); return response.text();
   });
-  const fast = send('options', { region: 'marsh', selectionGeneration: 3 }).then(async (response) => {
+  const fast = send('options', { region: 'marsh', selectionGeneration: 3, noteGeneration: 4 }).then(async (response) => {
     order.push('marsh'); return response.text();
   });
   const [stale, current] = await Promise.all([slow, fast]);
   assert.deepEqual(order, ['marsh', 'ridge']);
   assert.equal(stale, '');
   assert.match(current, /selector #habitat-options-3[^]*Reed beds/);
-  assert.match(current, /selector #habitat-description-3/);
+  assert.doesNotMatch(current, /selector #habitat-description/);
   assert.match(current, /"habitatsReadyGeneration":3/);
   assert.equal(await (await send('options', { region: 'ridge', selectionGeneration: 2 })).text(), '');
-  assert.match(await (await send('describe', { region: 'marsh', habitat: 'island' }, { generation: 3 })).text(),
-    /selector #habitat-description-3/);
+  const marshNote = await (await send('describe', { region: 'marsh', habitat: 'island', noteGeneration: 5 }, { generation: 3 })).text();
+  assert.match(marshNote, /selector #habitat-description-5/);
+  assert.match(marshNote, /"noteReadyGeneration":5/);
+  const clearedNote = await (await send('describe', { region: 'marsh', habitat: '', noteGeneration: 6 }, { generation: 3 })).text();
+  assert.match(clearedNote, /Choose a habitat to see its field note/);
+  assert.match(clearedNote, /"noteReadyGeneration":6/);
+
+  const outdatedNote = send('describe', { region: 'marsh', habitat: 'reeds', noteGeneration: 7 }, { generation: 3 });
+  const latestNote = send('describe', { region: 'marsh', habitat: 'island', noteGeneration: 8 }, { generation: 3 });
+  assert.equal(await (await outdatedNote).text(), '');
+  assert.match(await (await latestNote).text(), /selector #habitat-description-8/);
+  const noteAcrossRegions = send('describe', { region: 'marsh', habitat: 'reeds', noteGeneration: 9 }, { generation: 3 });
+  const nextOptions = send('options', { region: 'grove', selectionGeneration: 4, noteGeneration: 10 });
+  assert.equal(await (await noteAcrossRegions).text(), '');
+  assert.match(await (await nextOptions).text(), /selector #habitat-options-4/);
 });
 
 test('multipart upload validates file contents and returns only a summary', async () => {

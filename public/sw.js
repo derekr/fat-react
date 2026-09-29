@@ -8,6 +8,7 @@ const liveRecord = { message: 'The sample field note is ready.', revision: 1 };
 const loadProgress = new Map();
 const scrollProgress = new Map();
 const habitatGenerations = new Map();
+const habitatNoteGenerations = new Map();
 const wizardProgress = new Map();
 const contextCards = {
   fern: { title: 'Copperleaf fern', collection: 'Field journal' },
@@ -501,35 +502,50 @@ async function handleHabitats(request, url, route, clientId) {
   if (!Number.isSafeInteger(generation) || generation < 1 || generation > 999999) {
     return new Response('Invalid selection generation', { status: 400 });
   }
+  const noteGeneration = signals.noteGeneration;
+  if (!Number.isSafeInteger(noteGeneration) || noteGeneration < 1 || noteGeneration > 999999) {
+    return new Response('Invalid note generation', { status: 400 });
+  }
   const region = regions[signals.region];
   if (route === 'habitats/options') {
     if (signals.region && !Object.hasOwn(regions, signals.region)) return new Response('Unknown region', { status: 400 });
-    if (generation < (habitatGenerations.get(clientId) ?? 0)) return eventStream('');
+    if (generation < (habitatGenerations.get(clientId) ?? 0) ||
+        noteGeneration < (habitatNoteGenerations.get(clientId) ?? 0)) return eventStream('');
     habitatGenerations.set(clientId, generation);
+    habitatNoteGenerations.set(clientId, noteGeneration);
     // Uneven response times make quick region changes exercise the stale-response path.
     await new Promise((resolve) => setTimeout(resolve, { ridge: 700, marsh: 200, grove: 450 }[signals.region] ?? 0));
     if (habitatGenerations.get(clientId) !== generation) return eventStream('');
     const describeUrl = `${scope.pathname}__redact/habitats/describe?redactionInput=${encodeURIComponent(JSON.stringify({ generation }))}`;
     const select = region ? `<label for="habitat-choice-${generation}">Habitat · ${escapeHtml(region.label)}</label>
-      <select id="habitat-choice-${generation}" name="habitat" data-bind:habitat data-indicator="_loadingNote"
+      <select id="habitat-choice-${generation}" name="habitat" data-bind:habitat
         data-attr:disabled="$selectionGeneration !== $habitatsReadyGeneration"
-        data-on:change="${escapeHtml(`@get(${JSON.stringify(describeUrl)}, {requestCancellation: 'cleanup'})`)}">
+        data-on:change="${escapeHtml(`$noteGeneration++; @get(${JSON.stringify(describeUrl)}, {requestCancellation: 'cleanup'})`)}">
         <option value="">Choose a habitat…</option>
         ${Object.entries(region.habitats).map(([id, [name]]) => `<option value="${escapeHtml(id)}">${escapeHtml(name)}</option>`).join('')}
       </select>` : `<label for="habitat-choice-${generation}">Habitat</label>
         <select id="habitat-choice-${generation}" disabled><option>Choose a region first…</option></select>`;
-    return eventStream(patch(select, `habitat-options-${generation}`) +
-      patch('<p>Choose a habitat to see its field note.</p>', `habitat-description-${generation}`) +
-      patchSignals({ habitatsReadyGeneration: generation }));
+    return eventStream(patch(select, `habitat-options-${generation}`) + patchSignals({ habitatsReadyGeneration: generation }));
   }
   if (!region || !Object.hasOwn(regions, signals.region) ||
-      typeof signals.habitat !== 'string' || !Object.hasOwn(region.habitats, signals.habitat)) {
+      typeof signals.habitat !== 'string' ||
+      (signals.habitat !== '' && !Object.hasOwn(region.habitats, signals.habitat))) {
     return new Response('Invalid region and habitat pair', { status: 400 });
+  }
+  if (generation !== habitatGenerations.get(clientId) ||
+      noteGeneration < (habitatNoteGenerations.get(clientId) ?? 0)) return eventStream('');
+  habitatNoteGenerations.set(clientId, noteGeneration);
+  if (signals.habitat === '') {
+    return eventStream(patch('<p>Choose a habitat to see its field note.</p>', `habitat-description-${noteGeneration}`) +
+      patchSignals({ noteReadyGeneration: noteGeneration }));
   }
   const [name, note] = region.habitats[signals.habitat];
   await new Promise((resolve) => setTimeout(resolve, 300));
+  if (generation !== habitatGenerations.get(clientId) ||
+      noteGeneration !== habitatNoteGenerations.get(clientId)) return eventStream('');
   return eventStream(patch(`<article class="habitat-note"><span>${escapeHtml(region.label)} / FIELD NOTE</span>
-    <h3>${escapeHtml(name)}</h3><p>${escapeHtml(note)}</p></article>`, `habitat-description-${generation}`));
+    <h3>${escapeHtml(name)}</h3><p>${escapeHtml(note)}</p></article>`, `habitat-description-${noteGeneration}`) +
+    patchSignals({ noteReadyGeneration: noteGeneration }));
 }
 
 async function handleUpload(request, url) {
