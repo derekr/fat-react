@@ -44,7 +44,33 @@ export function actionUrl(path: string, input: unknown): string {
   return `${path}${separator}redactionInput=${encodeURIComponent(JSON.stringify(input))}`;
 }
 
-export function actionExpression(method: 'post' | 'get', url: string): string {
+export type RequestOptions = {
+  contentType?: 'json' | 'form';
+  filterSignals?: { include?: RegExp; exclude?: RegExp };
+  selector?: string;
+  headers?: Record<string, string>;
+  openWhenHidden?: boolean;
+  payload?: Record<string, unknown>;
+  retry?: 'auto' | 'error' | 'always' | 'never';
+  retryInterval?: number;
+  retryScaler?: number;
+  retryMaxWait?: number;
+  retryMaxCount?: number;
+  requestCancellation?: 'auto' | 'cleanup' | 'disabled';
+};
+
+export function serializeOptions(options: Record<string, unknown>): string {
+  const entries = Object.entries(options).filter(([, value]) => value !== undefined);
+  return `{${entries.map(([key, value]) => {
+    if (value instanceof RegExp) return `${JSON.stringify(key)}:${value.toString()}`;
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      return `${JSON.stringify(key)}:${serializeOptions(value as Record<string, unknown>)}`;
+    }
+    return `${JSON.stringify(key)}:${JSON.stringify(value)}`;
+  }).join(',')}}`;
+}
+
+export function actionExpression(method: 'post' | 'get' | 'put' | 'patch' | 'delete' | 'query', url: string, options?: RequestOptions): string {
   // JSON quoting ensures user input never becomes executable Datastar expression text.
-  return `@${method}(${JSON.stringify(url)})`;
+  return `@${method}(${JSON.stringify(url)}${options && Object.values(options).some((value) => value !== undefined) ? `, ${serializeOptions(options)}` : ''})`;
 }

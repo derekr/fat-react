@@ -4,9 +4,18 @@ const scope = new URL(self.registration.scope);
 const prefix = `${scope.pathname}__redact/`;
 const subscribers = new Map();
 const encoder = new TextEncoder();
+const contacts = [
+  ['Juniper', 'Comet'], ['Clover', 'Sparrow'], ['Aster', 'Moon'],
+  ['Maple', 'Finch'], ['Indigo', 'Wren'], ['Willow', 'Cloud'],
+  ['Cedar', 'Vale'], ['Poppy', 'Starling'], ['Briar', 'River'],
+  ['Sage', 'Hollow'],
+];
 
-self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('install', (event) => event.waitUntil(self.skipWaiting()));
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
+self.addEventListener('message', (event) => {
+  if (event.data === 'SKIP_WAITING') void self.skipWaiting();
+});
 
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
@@ -20,11 +29,11 @@ function escapeHtml(value) {
   })[char]);
 }
 
-function patch(html) {
+function patch(html, target = 'redact-basket') {
   const lines = html.replaceAll('\r', '').split('\n');
   return [
     'event: datastar-patch-elements',
-    'data: selector #redact-basket',
+    `data: selector #${target}`,
     'data: mode inner',
     ...lines.map((line) => `data: elements ${line}`),
     '', '',
@@ -43,6 +52,15 @@ function render(status = '') {
     <div class="basket-rule"></div>
     <div class="basket-note"><span>YOUR NOTE</span><p>${store.note ? escapeHtml(store.note) : '<em>Nothing written yet.</em>'}</p></div>
     <div class="basket-bottom"><span>${status ? escapeHtml(status) : 'Ready for your next action.'}</span><span>REV ${String(store.revision).padStart(2, '0')}</span></div>
+  </div>`;
+}
+
+function renderContacts(query) {
+  const results = contacts.filter(([first, last]) => `${first} ${last}`.toLowerCase().includes(query));
+  const rows = results.map(([first, last]) => `<tr><td>${escapeHtml(first)}</td><td>${escapeHtml(last)}</td></tr>`).join('');
+  return `<div class="search-results" aria-live="polite">
+    <p class="search-count">${results.length} ${results.length === 1 ? 'contact' : 'contacts'} found</p>
+    ${results.length ? `<table><thead><tr><th scope="col">First name</th><th scope="col">Last name</th></tr></thead><tbody>${rows}</tbody></table>` : '<p class="search-empty">No matches. Try another name.</p>'}
   </div>`;
 }
 
@@ -75,6 +93,21 @@ function openPipe(clientId) {
 
 async function handle(request, url, clientId) {
   const route = url.pathname.slice(prefix.length);
+  if (route === 'search' && request.method === 'GET') {
+    let input;
+    let signals;
+    try {
+      input = JSON.parse(url.searchParams.get('redactionInput') || '{}');
+      signals = JSON.parse(url.searchParams.get('datastar') || '{}');
+    } catch { return new Response('Invalid search request', { status: 400 }); }
+    if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).length !== 0 ||
+        !signals || typeof signals !== 'object' || Array.isArray(signals)) {
+      return new Response('Invalid search request', { status: 400 });
+    }
+    const value = signals?.contactSearch;
+    if (value !== undefined && (typeof value !== 'string' || value.length > 80)) return new Response('Invalid search', { status: 400 });
+    return eventStream(patch(renderContacts((value || '').trim().toLowerCase()), 'contact-results'));
+  }
   if (route === 'state' && request.method === 'GET') return eventStream(patch(render()));
   if (route === 'stream' && request.method === 'GET') return openPipe(clientId);
   if (!['add', 'remove', 'save'].includes(route) || request.method !== 'POST') {

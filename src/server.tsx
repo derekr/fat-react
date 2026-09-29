@@ -12,7 +12,7 @@ export function createRedactionHandler<Schema extends z.ZodType>(
 ) {
   return async (request: Request): Promise<Response> => {
     const url = new URL(request.url);
-    if (request.method !== 'POST' || url.pathname !== new URL(action.path, url).pathname) {
+    if (request.method !== (action.method ?? 'post').toUpperCase() || url.pathname !== new URL(action.path, url).pathname) {
       return new Response('Not found', { status: 404 });
     }
 
@@ -20,7 +20,9 @@ export function createRedactionHandler<Schema extends z.ZodType>(
     let signals: unknown;
     try {
       rawInput = JSON.parse(url.searchParams.get('redactionInput') ?? 'null');
-      signals = await request.json();
+      signals = request.method === 'GET'
+        ? JSON.parse(url.searchParams.get('datastar') ?? '{}')
+        : await request.json();
     } catch {
       return new Response('Invalid request', { status: 400 });
     }

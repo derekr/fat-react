@@ -3,7 +3,8 @@ import { test } from 'node:test';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { z } from 'zod';
-import { defineRedaction, Redact, Repipe } from '../src';
+import { defineRedaction, Redact, Recast, Repipe, Rewire } from '../src';
+import { eventAttribute } from '../src/directives';
 import { createRedactionHandler } from '../src/server';
 
 const action = defineRedaction({ path: '/api/note', schema: z.object({ section: z.literal('basket') }) });
@@ -17,6 +18,20 @@ test('the server handler rejects invalid input before rendering', async () => {
     method: 'POST', body: JSON.stringify({ note: 'hi' }),
   }));
   assert.equal(response.status, 400);
+});
+
+test('a GET redaction reads signals from the query string and validates action input', async () => {
+  const search = defineRedaction({ path: '/api/search', method: 'get', schema: z.object({ category: z.literal('contacts') }) });
+  const read = createRedactionHandler(search, 'results', ({ signals }) => {
+    const { query } = z.object({ query: z.string().max(80) }).parse(signals);
+    return <p>{query}</p>;
+  });
+  const url = 'https://example.test/api/search?redactionInput=%7B%22category%22%3A%22contacts%22%7D&datastar=%7B%22query%22%3A%22%3Ctest%3E%22%7D';
+  const response = await read(new Request(url));
+  assert.equal(response.status, 200);
+  assert.match(await response.text(), /data: elements <p>&lt;test&gt;<\/p>/);
+  assert.equal((await read(new Request('https://example.test/api/search?redactionInput=%7B%7D'))).status, 400);
+  assert.equal((await read(new Request(url, { method: 'POST' }))).status, 404);
 });
 
 test('server-rendered JSX is escaped and delivered as a targeted SSE morph', async () => {
@@ -35,4 +50,26 @@ test('a page-level read stream does not make the host issue a second request', (
   assert.match(html, /data-repipe="" data-init="@get/);
   assert.match(html, /data-redact-host=""/);
   assert.equal((html.match(/data-init=/g) ?? []).length, 1);
+});
+
+test('Rewire renders a debounced GET with a bound input and typed request options', () => {
+  const search = defineRedaction({ path: '/api/search', method: 'get', schema: z.object({}) });
+  const html = renderToStaticMarkup(<Rewire asChild event="input" action={search} input={{}} bind="search" debounce={200} filterSignals={{ include: /^search$/ }}>
+    <input type="search" />
+  </Rewire>);
+  assert.match(html, /data-bind="search"/);
+  assert.match(html, /data-on:input__debounce\.200ms="@get/);
+  assert.match(html, /&quot;include&quot;:\/\^search\$\//);
+  assert.throws(() => eventAttribute('input', { debounceLeading: true }), /require debounce/);
+});
+
+test('Recast preserves core directives and refuses conflicting event attributes', () => {
+  const html = renderToStaticMarkup(<Recast asChild signals={{ count: 0 }} events={[{ event: 'click', expression: '$count++' }]}>
+    <button type="button">Count</button>
+  </Recast>);
+  assert.match(html, /data-signals="\{&quot;count&quot;:0\}"/);
+  assert.match(html, /data-on:click="\$count\+\+"/);
+  assert.throws(() => renderToStaticMarkup(<Recast asChild events={[{ event: 'click', expression: '$count++' }]}>
+    <button data-on:click="old">Count</button>
+  </Recast>), /already defines/);
 });

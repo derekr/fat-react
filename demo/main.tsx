@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
-import { createRoot } from 'react-dom/client';
 import { z } from 'zod';
 import { defineRedaction, Redact, Repipe, Rewire } from '../src';
+import { bootstrap } from './bootstrap';
 import './style.css';
 
 const base = import.meta.env.BASE_URL;
@@ -58,6 +58,7 @@ function App() {
         {sourceUrl
           ? <a className="source" href={sourceUrl} target="_blank" rel="noreferrer">View source <span aria-hidden="true">↗</span></a>
           : <a className="source" href="#guide-title">Read the guide <span aria-hidden="true">↓</span></a>}
+        <a className="source" href={`${base}examples/`}>Examples <span aria-hidden="true">→</span></a>
       </header>
 
       <main>
@@ -138,33 +139,4 @@ function App() {
   );
 }
 
-async function start() {
-  const root = createRoot(document.getElementById('root')!);
-  root.render(<App />);
-
-  if (!('serviceWorker' in navigator)) {
-    document.body.dataset.error = 'Service workers are needed for this static demo.';
-    return;
-  }
-
-  try {
-    await navigator.serviceWorker.register(`${base}sw.js`, { scope: base });
-    await navigator.serviceWorker.ready;
-    if (!navigator.serviceWorker.controller) {
-      await new Promise<void>((resolve) => navigator.serviceWorker.addEventListener('controllerchange', () => resolve(), { once: true }));
-    }
-    // Start the morph engine only after the mock backend controls this page.
-    const script = document.createElement('script');
-    script.type = 'module';
-    script.src = 'https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.0-RC.8/bundles/datastar.js';
-    await new Promise<void>((resolve, reject) => {
-      script.onload = () => resolve();
-      script.onerror = () => reject(new Error('Could not start the live preview.'));
-      document.head.append(script);
-    });
-  } catch (error) {
-    document.body.dataset.error = error instanceof Error ? error.message : 'Unable to start the demo.';
-  }
-}
-
-void start();
+void bootstrap(<App />);

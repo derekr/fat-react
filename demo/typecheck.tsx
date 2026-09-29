@@ -7,3 +7,7 @@ const action = defineRedaction({ path: '/api/add', schema: z.object({ quantity: 
 export const valid = <Rewire action={action} input={{ quantity: 1 }}><button>Add</button></Rewire>;
 // @ts-expect-error quantity must be a number.
 export const invalid = <Rewire action={action} input={{ quantity: 'one' }}><button>Add</button></Rewire>;
+
+export const search = <Rewire asChild event="input" method="get" action={action} input={{ quantity: 1 }} debounce={200} bind="query"><input /></Rewire>;
+// @ts-expect-error debounce is a duration in milliseconds, not a string.
+export const invalidTiming = <Rewire asChild event="input" action={action} input={{ quantity: 1 }} debounce="200ms"><input /></Rewire>;
