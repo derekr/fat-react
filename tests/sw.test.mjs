@@ -216,3 +216,95 @@ test('multipart upload validates file contents and returns only a summary', asyn
   assert.match(result, /2 lines, 24 bytes/);
   assert.doesNotMatch(result, /invented fern|quiet hill|sample-note\.txt/);
 });
+
+test('modal detail input is validated before its delayed HTML response', async () => {
+  const listeners = new Map();
+  const scope = 'https://example.test/redact/examples/modal-details/';
+  runInNewContext(readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8'), {
+    self: { registration: { scope }, addEventListener(name, callback) { listeners.set(name, callback); } },
+    URL, Response, TextEncoder, ReadableStream, setTimeout,
+  });
+  async function send(input, method = 'GET') {
+    const url = `${scope}__redact/details/view?redactionInput=${encodeURIComponent(JSON.stringify(input))}`;
+    let response;
+    listeners.get('fetch')({ request: new Request(url, { method }), clientId: 'tab-a',
+      respondWith(value) { response = value; } });
+    return response;
+  }
+  assert.equal((await send({ id: 'unknown' })).status, 400);
+  assert.equal((await send({ id: 'fern', extra: true })).status, 400);
+  assert.equal((await send({ id: 'fern' }, 'POST')).status, 404);
+  let completed = false;
+  const pending = send({ id: 'fern' }).then((response) => { completed = true; return response; });
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(completed, false);
+  const html = await (await pending).text();
+  assert.match(html, /selector #modal-content/);
+  assert.match(html, /Copperleaf fern/);
+});
+
+test('sortable list rejects unknown moves and persists validated drag and arrow moves', async () => {
+  const listeners = new Map();
+  const scope = 'https://example.test/redact/examples/sortable-list/';
+  runInNewContext(readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8'), {
+    self: { registration: { scope }, addEventListener(name, callback) { listeners.set(name, callback); } },
+    URL, Response, TextEncoder, ReadableStream,
+  });
+  async function send(route, method, input, signals = {}) {
+    const url = `${scope}__redact/sort${route}${input === undefined ? '' : `?redactionInput=${encodeURIComponent(JSON.stringify(input))}`}`;
+    let response;
+    listeners.get('fetch')({ request: new Request(url, {
+      method, ...(method === 'POST' ? { body: JSON.stringify(signals) } : {}),
+    }), clientId: 'sort-tab', respondWith(value) { response = value; } });
+    return response;
+  }
+  const order = (html) => [...html.matchAll(/<strong>([^<]+)<\/strong>/g)].map((match) => match[1]);
+  const initial = await (await send('', 'GET')).text();
+  assert.deepEqual(order(initial), ['Leaf study', 'Pocket map', 'Sky notes', 'Stone shapes']);
+  for (const [input, signals] of [
+    [{ id: 'unknown', direction: 'down' }, {}],
+    [{ id: 'leaf', direction: 'diagonal' }, {}],
+    [{ id: 'sky', direction: 'drop' }, { draggedCard: 'unknown' }],
+  ]) assert.equal((await send('/move', 'POST', input, signals)).status, 400);
+  assert.equal(await (await send('', 'GET')).text(), initial);
+  const dragged = await (await send('/move', 'POST', { id: 'sky', direction: 'drop' }, { draggedCard: 'leaf' })).text();
+  assert.deepEqual(order(dragged), ['Pocket map', 'Sky notes', 'Leaf study', 'Stone shapes']);
+  const moved = await (await send('/move', 'POST', { id: 'stone', direction: 'up' })).text();
+  assert.deepEqual(order(moved), ['Pocket map', 'Sky notes', 'Stone shapes', 'Leaf study']);
+  assert.deepEqual(order(await (await send('/reset', 'POST', {})).text()), order(initial));
+});
+
+test('a validated note update broadcasts to two read streams and replays on reconnect', async () => {
+  const listeners = new Map();
+  const scope = 'https://example.test/redact/examples/cross-tab-updates/';
+  runInNewContext(readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8'), {
+    self: { registration: { scope }, addEventListener(name, callback) { listeners.set(name, callback); } },
+    URL, Response, TextEncoder, ReadableStream,
+  });
+  async function send(route, method, clientId, input, signals) {
+    const url = `${scope}__redact/live/${route}${input === undefined ? '' : `?redactionInput=${encodeURIComponent(JSON.stringify(input))}`}`;
+    let response;
+    listeners.get('fetch')({ request: new Request(url, {
+      method, ...(method === 'POST' ? { body: JSON.stringify(signals) } : {}),
+    }), clientId, respondWith(value) { response = value; } });
+    return response;
+  }
+  const a = (await send('stream', 'GET', 'tab-a')).body.getReader();
+  const b = (await send('stream', 'GET', 'tab-b')).body.getReader();
+  const decode = (value) => new TextDecoder().decode(value);
+  assert.match(decode((await a.read()).value), /REV 1/);
+  assert.match(decode((await b.read()).value), /REV 1/);
+  assert.equal((await send('update', 'POST', 'tab-a', { section: 'note' }, { liveDraft: '' })).status, 400);
+  assert.equal((await send('update', 'POST', 'tab-a', { section: 'wrong' }, { liveDraft: 'A valid note' })).status, 400);
+  const response = await send('update', 'POST', 'tab-a', { section: 'note' }, { liveDraft: '<Sample ridge>' });
+  assert.equal(response.status, 200);
+  assert.equal(await response.text(), '');
+  assert.match(decode((await a.read()).value), /REV 2[^]*&lt;Sample ridge&gt;/);
+  assert.match(decode((await b.read()).value), /REV 2[^]*&lt;Sample ridge&gt;/);
+  assert.match(decode((await a.read()).value), /"liveDraft":""/);
+  await a.cancel();
+  await b.cancel();
+  const reconnected = (await send('stream', 'GET', 'tab-b')).body.getReader();
+  assert.match(decode((await reconnected.read()).value), /REV 2[^]*&lt;Sample ridge&gt;/);
+  await reconnected.cancel();
+});

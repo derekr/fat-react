@@ -1,0 +1,13 @@
+.live-shell .panel{min-height:390px}
+.live-region{min-height:165px;padding:22px;border:1px solid #dce5d6;border-radius:9px;background:#fffefa}
+.live-region:empty:before{content:attr(data-fallback);color:#708173;font-size:13px}
+.live-record span{font:11px 'DM Mono',monospace;letter-spacing:.08em;color:#53755d}
+.live-record p{font-size:20px;color:#2e4f37;line-height:1.5;margin:18px 0}
+.live-record small{font-size:12px;color:#738676}
+.live-form{display:grid;gap:12px;margin-top:25px}
+.live-form label{font:11px 'DM Mono',monospace;text-transform:uppercase;color:#55705e}
+.live-form input{padding:13px;border:1px solid #ccd9cc;border-radius:8px;background:#fff}
+.live-form input:focus-visible,.live-form button:focus-visible{outline:3px solid #e5946b;outline-offset:3px}
+.live-form button{justify-self:start;padding:12px 17px;border:1px solid #254733;border-radius:7px;background:#254733;color:#fff;font-weight:700}
+.live-form button:disabled{opacity:.6}
+.live-new-tab{display:inline-block;margin-top:25px;font-size:13px;font-weight:700;color:#365640}

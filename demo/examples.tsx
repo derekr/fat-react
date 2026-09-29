@@ -74,6 +74,21 @@ function App() {
         <span>Submit a small text file as form data. The demo backend validates it locally and returns a summary without storing its contents.</span>
         <span className="feature-tags">Rewire · multipart form · POST · Redact</span>
       </a>
+      <a className="example-feature" href={`${base}examples/modal-details/`}>
+        <span className="step">12 / LIVE RECIPE</span><strong>Modal Details <span aria-hidden="true">↗</span></strong>
+        <span>Open a native dialog instantly, then load invented record details into it asynchronously.</span>
+        <span className="feature-tags">dialog · Rewire · GET · indicator · Redact</span>
+      </a>
+      <a className="example-feature" href={`${base}examples/sortable-list/`}>
+        <span className="step">13 / LIVE RECIPE</span><strong>Sortable List <span aria-hidden="true">↗</span></strong>
+        <span>Reorder invented cards by dragging or with keyboard-friendly buttons. The server validates each move and morphs the list.</span>
+        <span className="feature-tags">drag & drop · POST · validated order · Redact</span>
+      </a>
+      <a className="example-feature" href={`${base}examples/cross-tab-updates/`}>
+        <span className="step">14 / LIVE RECIPE</span><strong>Cross-Tab Updates <span aria-hidden="true">↗</span></strong>
+        <span>Open this demo twice. Save an invented note in one tab and watch the other tab receive the new server view.</span>
+        <span className="feature-tags">Repipe · Rewire · POST · broadcast SSE · Redact</span>
+      </a>
       <section className="attribute-guide" aria-labelledby="attributes-title">
         <span className="under-label">CORE ATTRIBUTE MAP</span>
         <h2 id="attributes-title">The browser’s vocabulary, in JSX.</h2>

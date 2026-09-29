@@ -25,6 +25,9 @@ export default defineConfig(({ command }) => ({
     deleteRow: fileURLToPath(new URL('./examples/delete-row/index.html', import.meta.url)),
     dependentSelects: fileURLToPath(new URL('./examples/dependent-selects/index.html', import.meta.url)),
     fileUpload: fileURLToPath(new URL('./examples/file-upload/index.html', import.meta.url)),
+    modalDetails: fileURLToPath(new URL('./examples/modal-details/index.html', import.meta.url)),
+    sortableList: fileURLToPath(new URL('./examples/sortable-list/index.html', import.meta.url)),
+    crossTabUpdates: fileURLToPath(new URL('./examples/cross-tab-updates/index.html', import.meta.url)),
   } } },
   plugins: [{
     name: 'microlighter-grammars',

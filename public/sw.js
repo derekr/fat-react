@@ -3,6 +3,8 @@ const store = { quantity: 2, note: '', revision: 0 };
 const scope = new URL(self.registration.scope);
 const prefix = `${scope.pathname}__redact/`;
 const subscribers = new Map();
+const liveSubscribers = new Map();
+const liveRecord = { message: 'The sample field note is ready.', revision: 1 };
 const loadProgress = new Map();
 const scrollProgress = new Map();
 const encoder = new TextEncoder();
@@ -36,6 +38,18 @@ const regions = {
     canopy: ['Green canopy', 'A shaded path under broad leaves.'],
   } },
 };
+const modalRecords = {
+  fern: { name: 'Copperleaf fern', kind: 'Botanical sketch', note: 'A fictional study of curled copper-colored fronds.' },
+  map: { name: 'Paper trail map', kind: 'Route note', note: 'An invented route past a hillside and a quiet stream.' },
+  star: { name: 'Evening star chart', kind: 'Observation', note: 'A sample drawing of constellations over the valley.' },
+};
+const sortableCards = [
+  { id: 'leaf', title: 'Leaf study', description: 'An imagined botanical drawing.' },
+  { id: 'map', title: 'Pocket map', description: 'A small route through the foothills.' },
+  { id: 'sky', title: 'Sky notes', description: 'Fictional observations after dusk.' },
+  { id: 'stone', title: 'Stone shapes', description: 'A collection of smooth silhouettes.' },
+];
+let cardOrder = sortableCards.map(({ id }) => id);
 const contacts = [
   ['Juniper', 'Comet'], ['Clover', 'Sparrow'], ['Aster', 'Moon'],
   ['Maple', 'Finch'], ['Indigo', 'Wren'], ['Willow', 'Cloud'],
@@ -74,6 +88,79 @@ function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   })[char]);
+}
+
+async function handleModalDetails(request, url) {
+  if (request.method !== 'GET') return new Response('Not found', { status: 404 });
+  let input;
+  try { input = JSON.parse(url.searchParams.get('redactionInput') || 'null'); }
+  catch { return new Response('Invalid detail request', { status: 400 }); }
+  if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).length !== 1 ||
+      typeof input.id !== 'string' || !Object.hasOwn(modalRecords, input.id)) {
+    return new Response('Invalid detail request', { status: 400 });
+  }
+  const record = modalRecords[input.id];
+  await new Promise((resolve) => setTimeout(resolve, 800));
+  return eventStream(patch(`<article class="modal-record"><span>${escapeHtml(record.kind)}</span>
+    <h3>${escapeHtml(record.name)}</h3><p>${escapeHtml(record.note)}</p></article>`, 'modal-content'));
+}
+
+function sortExpression(id, direction) {
+  const url = `${scope.pathname}__redact/sort/move?redactionInput=${encodeURIComponent(JSON.stringify({ id, direction }))}`;
+  return `@post(${JSON.stringify(url)})`;
+}
+
+function renderSortableCards(message = 'Drag a card or use its arrow buttons.') {
+  const cards = cardOrder.map((id, index) => {
+    const card = sortableCards.find((item) => item.id === id);
+    return `<li class="sort-card" draggable="true" data-on:dragstart="${escapeHtml(`$draggedCard = ${JSON.stringify(id)}; evt.dataTransfer.setData('text/plain', ${JSON.stringify(id)})`)}"
+      data-on:dragover="evt.preventDefault()" data-on:drop="${escapeHtml(`evt.preventDefault(); ${sortExpression(id, 'drop')}`)}"
+      data-on:dragend="$draggedCard = ''" aria-describedby="sort-instructions">
+      <span class="sort-grip" aria-hidden="true">⠿</span><span class="sort-number">${String(index + 1).padStart(2, '0')}</span>
+      <span class="sort-copy"><strong>${escapeHtml(card.title)}</strong><small>${escapeHtml(card.description)}</small></span>
+      <span class="sort-controls"><button type="button" aria-label="Move ${escapeHtml(card.title)} up" data-on:click="${escapeHtml(sortExpression(id, 'up'))}">↑</button>
+      <button type="button" aria-label="Move ${escapeHtml(card.title)} down" data-on:click="${escapeHtml(sortExpression(id, 'down'))}">↓</button></span>
+    </li>`;
+  }).join('');
+  return `<div class="sort-view"><ol class="sort-list">${cards}</ol><p class="sort-message" role="status">${escapeHtml(message)}</p></div>`;
+}
+
+async function handleSort(request, url, route) {
+  const method = route === 'sort' ? 'GET' : 'POST';
+  if (request.method !== method) return new Response('Not found', { status: 404 });
+  let input;
+  try { input = JSON.parse(url.searchParams.get('redactionInput') || (route === 'sort' ? '{}' : 'null')); }
+  catch { return new Response('Invalid sort input', { status: 400 }); }
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return new Response('Invalid sort input', { status: 400 });
+  if (route !== 'sort/move') {
+    if (Object.keys(input).length) return new Response('Invalid sort input', { status: 400 });
+    if (route === 'sort/reset') cardOrder = sortableCards.map(({ id }) => id);
+    return eventStream(patch(renderSortableCards(route === 'sort/reset' ? 'Original order restored.' : undefined), 'sort-items'));
+  }
+  if (Object.keys(input).length !== 2 || typeof input.id !== 'string' ||
+      !sortableCards.some((card) => card.id === input.id) || !['up', 'down', 'drop'].includes(input.direction)) {
+    return new Response('Invalid sort input', { status: 400 });
+  }
+  let from = cardOrder.indexOf(input.id);
+  let to;
+  if (input.direction === 'drop') {
+    let signals;
+    try { signals = await request.json(); }
+    catch { return new Response('Invalid dragged card', { status: 400 }); }
+    if (!signals || typeof signals !== 'object' || Array.isArray(signals) ||
+        typeof signals.draggedCard !== 'string' || !sortableCards.some((card) => card.id === signals.draggedCard)) {
+      return new Response('Invalid dragged card', { status: 400 });
+    }
+    from = cardOrder.indexOf(signals.draggedCard);
+    to = cardOrder.indexOf(input.id);
+  } else {
+    to = Math.max(0, Math.min(cardOrder.length - 1, from + (input.direction === 'up' ? -1 : 1)));
+  }
+  if (from !== to) {
+    const [moved] = cardOrder.splice(from, 1);
+    cardOrder.splice(to, 0, moved);
+  }
+  return eventStream(patchSignals({ draggedCard: '' }) + patch(renderSortableCards('Order saved by the demo backend.'), 'sort-items'));
 }
 
 function patch(html, target = 'redact-basket', mode = 'inner') {
@@ -531,8 +618,65 @@ function openPipe(clientId) {
   return eventStream(body);
 }
 
+function renderLiveRecord() {
+  return `<article class="live-record"><span>SHARED FIELD NOTE · REV ${liveRecord.revision}</span>
+    <p>${escapeHtml(liveRecord.message)}</p><small>Server-owned HTML delivered to every open tab.</small></article>`;
+}
+
+function sendLive(clientId, content) {
+  const controller = liveSubscribers.get(clientId);
+  if (!controller) return;
+  try { controller.enqueue(encoder.encode(content)); }
+  catch { liveSubscribers.delete(clientId); }
+}
+
+function openLivePipe(clientId) {
+  let streamController;
+  const body = new ReadableStream({
+    start(controller) {
+      streamController = controller;
+      try { liveSubscribers.get(clientId)?.close(); } catch { /* Already closed. */ }
+      liveSubscribers.set(clientId, controller);
+      controller.enqueue(encoder.encode(patch(renderLiveRecord(), 'live-record')));
+    },
+    cancel() {
+      if (liveSubscribers.get(clientId) === streamController) liveSubscribers.delete(clientId);
+    },
+  });
+  return eventStream(body);
+}
+
+async function handleLive(request, url, route, clientId) {
+  if (route === 'live/stream') {
+    if (request.method !== 'GET' || url.searchParams.has('redactionInput')) return new Response('Not found', { status: 404 });
+    return openLivePipe(clientId);
+  }
+  if (request.method !== 'POST') return new Response('Not found', { status: 404 });
+  let input;
+  let signals;
+  try {
+    input = JSON.parse(url.searchParams.get('redactionInput') || 'null');
+    signals = await request.json();
+  } catch { return new Response('Invalid note request', { status: 400 }); }
+  if (!input || typeof input !== 'object' || Array.isArray(input) ||
+      Object.keys(input).length !== 1 || input.section !== 'note' ||
+      !signals || typeof signals !== 'object' || Array.isArray(signals) ||
+      typeof signals.liveDraft !== 'string' || !signals.liveDraft.trim() || signals.liveDraft.length > 80) {
+    return new Response('Invalid note request', { status: 400 });
+  }
+  liveRecord.message = signals.liveDraft.trim();
+  liveRecord.revision++;
+  const update = patch(renderLiveRecord(), 'live-record');
+  for (const id of liveSubscribers.keys()) sendLive(id, update);
+  sendLive(clientId, patchSignals({ liveDraft: '' }));
+  return eventStream('');
+}
+
 async function handle(request, url, clientId) {
   const route = url.pathname.slice(prefix.length);
+  if (route === 'live/stream' || route === 'live/update') return handleLive(request, url, route, clientId);
+  if (route === 'sort' || route === 'sort/move' || route === 'sort/reset') return handleSort(request, url, route);
+  if (route === 'details/view') return handleModalDetails(request, url);
   if (route === 'upload/check') return handleUpload(request, url);
   if (route === 'habitats/options' || route === 'habitats/describe') return handleHabitats(request, url, route);
   if (route === 'rows' || route === 'rows/reset' || route === 'rows/delete') return handleDeleteRows(request, url, route);
