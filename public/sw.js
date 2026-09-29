@@ -4,6 +4,8 @@ const scope = new URL(self.registration.scope);
 const prefix = `${scope.pathname}__redact/`;
 const subscribers = new Map();
 const encoder = new TextEncoder();
+const initialContact = { firstName: 'Juniper', lastName: 'Comet', role: 'Cartographer' };
+let contact = { ...initialContact };
 const contacts = [
   ['Juniper', 'Comet'], ['Clover', 'Sparrow'], ['Aster', 'Moon'],
   ['Maple', 'Finch'], ['Indigo', 'Wren'], ['Willow', 'Cloud'],
@@ -64,6 +66,79 @@ function renderContacts(query) {
   </div>`;
 }
 
+function contactSignals(editing) {
+  return {
+    contactEditing: editing,
+    contactFirstName: contact.firstName,
+    contactLastName: contact.lastName,
+    contactRole: contact.role,
+  };
+}
+
+function contactView() {
+  return `<div class="editor-view"><dl>
+    <dt>First name</dt><dd>${escapeHtml(contact.firstName)}</dd>
+    <dt>Last name</dt><dd>${escapeHtml(contact.lastName)}</dd>
+    <dt>Role</dt><dd>${escapeHtml(contact.role)}</dd>
+  </dl></div>`;
+}
+
+function contactEditor(values = contact, error = '') {
+  return `<div class="editor-fields">
+    <label>First name<input type="text" name="firstName" data-bind:contact-first-name value="${escapeHtml(values.firstName)}" maxlength="40" autocomplete="off"></label>
+    <label>Last name<input type="text" name="lastName" data-bind:contact-last-name value="${escapeHtml(values.lastName)}" maxlength="40" autocomplete="off"></label>
+    <label>Role<input type="text" name="role" data-bind:contact-role value="${escapeHtml(values.role)}" maxlength="60" autocomplete="off"></label>
+    ${error ? `<p class="editor-error" role="alert">${escapeHtml(error)}</p>` : ''}
+  </div>`;
+}
+
+function contactResponse(html, editing, signals = contactSignals(editing)) {
+  return eventStream(patchSignals(signals) + patch(html, 'contact-detail'));
+}
+
+async function handleContact(request, url, route) {
+  let input;
+  try { input = JSON.parse(url.searchParams.get('redactionInput') || '{}'); }
+  catch { return new Response('Invalid action input', { status: 400 }); }
+  if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).length) {
+    return new Response('Invalid action input', { status: 400 });
+  }
+
+  if (route === 'contact' && request.method === 'GET') return contactResponse(contactView(), false);
+  if (route === 'contact/edit' && request.method === 'GET') return contactResponse(contactEditor(), true);
+  if (route === 'contact/reset' && request.method === 'PATCH') {
+    contact = { ...initialContact };
+    return contactResponse(contactView(), false);
+  }
+  if (route === 'contact' && request.method === 'PUT') {
+    let signals;
+    try { signals = await request.json(); }
+    catch { return new Response('Invalid signals', { status: 400 }); }
+    if (!signals || typeof signals !== 'object' || Array.isArray(signals)) return new Response('Invalid signals', { status: 400 });
+    const values = {
+      firstName: signals.contactFirstName,
+      lastName: signals.contactLastName,
+      role: signals.contactRole,
+    };
+    if (typeof values.firstName !== 'string' || typeof values.lastName !== 'string' || typeof values.role !== 'string' ||
+        values.firstName.length > 40 || values.lastName.length > 40 || values.role.length > 60) {
+      return new Response('Invalid contact', { status: 400 });
+    }
+    const trimmed = Object.fromEntries(Object.entries(values).map(([key, value]) => [key, value.trim()]));
+    if (Object.values(trimmed).some((value) => !value)) {
+      return contactResponse(contactEditor(values, 'All three fields are required.'), true, {
+        contactEditing: true,
+        contactFirstName: values.firstName,
+        contactLastName: values.lastName,
+        contactRole: values.role,
+      });
+    }
+    contact = trimmed;
+    return contactResponse(contactView(), false);
+  }
+  return new Response('Not found', { status: 404 });
+}
+
 function sendTo(clientId, content) {
   const controller = subscribers.get(clientId);
   if (!controller) return;
@@ -93,6 +168,9 @@ function openPipe(clientId) {
 
 async function handle(request, url, clientId) {
   const route = url.pathname.slice(prefix.length);
+  if (route === 'contact' || route === 'contact/edit' || route === 'contact/reset') {
+    return handleContact(request, url, route);
+  }
   if (route === 'search' && request.method === 'GET') {
     let input;
     let signals;

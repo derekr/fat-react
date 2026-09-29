@@ -24,6 +24,11 @@ function App() {
         <span>Type a name; a debounced GET sends the bound value and morphs a server-rendered table. Try the request and inspect the code.</span>
         <span className="feature-tags">Rewire · bind · debounce · GET · Redact</span>
       </a>
+      <a className="example-feature" href={`${base}examples/click-to-edit/`}>
+        <span className="step">02 / LIVE RECIPE</span><strong>Click To Edit <span aria-hidden="true">↗</span></strong>
+        <span>Swap a contact view for a server-rendered editor; validate and save bound fields, cancel a draft, or reset the record.</span>
+        <span className="feature-tags">Rewire · Recast · GET · PUT · PATCH · Redact</span>
+      </a>
       <section className="attribute-guide" aria-labelledby="attributes-title">
         <span className="under-label">CORE ATTRIBUTE MAP</span>
         <h2 id="attributes-title">The browser’s vocabulary, in JSX.</h2>
