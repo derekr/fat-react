@@ -34,6 +34,14 @@ test('a GET redaction reads signals from the query string and validates action i
   assert.equal((await read(new Request(url, { method: 'POST' }))).status, 404);
 });
 
+test('a server handler can append a validated page of rows to a Redact host', async () => {
+  const load = defineRedaction({ path: '/api/more', method: 'get', schema: z.object({ page: z.number().int().min(1).max(3) }) });
+  const handler = createRedactionHandler(load, 'load-items', ({ input }) => <article>Page {input.page}</article>, 'append');
+  const response = await handler(new Request('https://example.test/api/more?redactionInput=%7B%22page%22%3A2%7D'));
+  assert.match(await response.text(), /data: selector #load-items\ndata: mode append\ndata: elements <article>Page 2<\/article>/);
+  assert.equal((await handler(new Request('https://example.test/api/more?redactionInput=%7B%22page%22%3A9%7D'))).status, 400);
+});
+
 test('server-rendered JSX is escaped and delivered as a targeted SSE morph', async () => {
   const response = await handler(new Request('https://example.test/api/note?redactionInput=%7B%22section%22%3A%22basket%22%7D', {
     method: 'POST', body: JSON.stringify({ note: '<script>alert(1)</script>' }),

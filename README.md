@@ -11,7 +11,7 @@ npm run dev
 
 The interactive demo uses a service worker as a temporary mock backend, so it works on static GitHub Pages. It includes a button with `asChild`, a delegated wrapper button, a form, and one long-lived read stream. The demo store may reset whenever the browser restarts the service worker.
 
-The [examples gallery](https://derekr.github.io/redact/examples/) includes [Active Search](https://derekr.github.io/redact/examples/active-search/) (bound inputs, debounced GET actions, targeted morphs) and [Click To Edit](https://derekr.github.io/redact/examples/click-to-edit/) (server-rendered edit mode, PUT validation, Cancel, and Reset). The examples use their own service-worker scope under `/redact/examples/`, independent of the home demo stream. Its core-attribute map shows which directives can be expressed with JSX. Pro-only features are not included.
+The [examples gallery](https://derekr.github.io/redact/examples/) includes [Active Search](https://derekr.github.io/redact/examples/active-search/) (debounced GET), [Click To Edit](https://derekr.github.io/redact/examples/click-to-edit/) (server-rendered editing and PUT validation), and [Click To Load](https://derekr.github.io/redact/examples/click-to-load/) (validated pagination and append patches). The examples use their own service-worker scope under `/redact/examples/`, independent of the home demo stream. Its core-attribute map shows which directives can be expressed with JSX. Pro-only features are not included.
 
 ## API sketch
 
@@ -49,6 +49,8 @@ const search = defineRedaction({ path: '/api/search', method: 'get', schema: z.o
 `Repipe` opens a long-lived SSE read request for the page. The backend can send zero or more `redactPatch(targetId, html)` events on it, targeting any `Redact` host. `Rewire` sends short-lived write requests; after publishing the new state to the read stream, a write endpoint can return `redactionAck()` (a valid, empty SSE response). For a simpler request/response setup, omit `Repipe`, give `Redact` a `src` for its initial GET, and return a patch directly from each action.
 
 The action description is **not** a server action implementation. The server must validate the request against the schema, authorize the operation, and render HTML. `createRedactionHandler(action, targetId, render)` in `src/server.tsx` handles request parsing, schema validation, server-side JSX rendering and a single SSE patch response. `redactResponse(targetId, html)` constructs a patch response directly; `redactPatch(targetId, html)` constructs an event for longer-lived streams. Keep the handler and any private state in server-only code. A browser-delivered script cannot carry an executable server closure.
+
+For incremental lists, pass `'append'` as the third argument to `redactPatch` or `redactResponse`, or as the fourth argument to `createRedactionHandler`. The default `'inner'` mode morphs the host’s existing contents; `'append'` adds HTML to them. Validate each page or cursor on the server before returning new items.
 
 ```tsx
 const handleAdd = createRedactionHandler(add, 'basket', async ({ input, request }) => {

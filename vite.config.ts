@@ -16,6 +16,7 @@ export default defineConfig(({ command }) => ({
     examples: fileURLToPath(new URL('./examples/index.html', import.meta.url)),
     activeSearch: fileURLToPath(new URL('./examples/active-search/index.html', import.meta.url)),
     clickToEdit: fileURLToPath(new URL('./examples/click-to-edit/index.html', import.meta.url)),
+    clickToLoad: fileURLToPath(new URL('./examples/click-to-load/index.html', import.meta.url)),
   } } },
   plugins: [{
     name: 'microlighter-grammars',

@@ -10,6 +10,13 @@ test('a multi-line HTML fragment stays in one targeted SSE event', () => {
   assert.throws(() => redactPatch('basket] *', 'hi'));
 });
 
+test('append patches add server HTML to the host without replacing existing children', () => {
+  const event = redactPatch('load-items', '<article>Five</article>\n<article>Six</article>', 'append');
+  assert.match(event, /data: selector #load-items\ndata: mode append\n/);
+  assert.match(event, /data: elements <article>Five<\/article>\ndata: elements <article>Six<\/article>\n\n$/);
+  assert.throws(() => redactPatch('load-items', '<p>Oops</p>', 'replace'), /mode must be inner or append/);
+});
+
 test('untrusted input cannot escape the action URL or expression string', () => {
   const value = `'); alert(1); ('`;
   const url = actionUrl('/api/add?source=demo', { item: value });

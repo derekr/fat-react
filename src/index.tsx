@@ -4,6 +4,7 @@ import { attachDirectives, coreAttributes, eventAttribute, type EventModifiers }
 import { actionExpression, actionUrl, type RequestOptions } from './protocol';
 
 export { redactPatch, redactResponse, redactionAck } from './protocol';
+export type { RedactPatchMode } from './protocol';
 export { Recast } from './directives';
 export type { CoreDirectives, EventModifiers } from './directives';
 

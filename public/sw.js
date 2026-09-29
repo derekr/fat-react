@@ -3,6 +3,7 @@ const store = { quantity: 2, note: '', revision: 0 };
 const scope = new URL(self.registration.scope);
 const prefix = `${scope.pathname}__redact/`;
 const subscribers = new Map();
+const loadProgress = new Map();
 const encoder = new TextEncoder();
 const initialContact = { firstName: 'Juniper', lastName: 'Comet', role: 'Cartographer' };
 let contact = { ...initialContact };
@@ -12,6 +13,21 @@ const contacts = [
   ['Cedar', 'Vale'], ['Poppy', 'Starling'], ['Briar', 'River'],
   ['Sage', 'Hollow'],
 ];
+const loadItems = [
+  ['Field notes', 'Short observations from the garden.'],
+  ['Sketchbook', 'A pocket-sized collection of shapes.'],
+  ['Seed catalog', 'Ideas for the next planting season.'],
+  ['Paper map', 'A route through the foothills.'],
+  ['Weather log', 'Cloud patterns and quiet mornings.'],
+  ['Recipe card', 'A simple supper with garden herbs.'],
+  ['Postcard', 'A drawing of a bright little harbor.'],
+  ['Trail guide', 'Turns, landmarks, and a scenic overlook.'],
+  ['Color study', 'Shades collected from autumn leaves.'],
+  ['Reading list', 'A few stories for a rainy afternoon.'],
+  ['Plant journal', 'Notes on the first spring shoots.'],
+  ['Star chart', 'An evening guide to the constellations.'],
+];
+const loadBatchSize = 4;
 
 self.addEventListener('install', (event) => event.waitUntil(self.skipWaiting()));
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
@@ -31,12 +47,12 @@ function escapeHtml(value) {
   })[char]);
 }
 
-function patch(html, target = 'redact-basket') {
+function patch(html, target = 'redact-basket', mode = 'inner') {
   const lines = html.replaceAll('\r', '').split('\n');
   return [
     'event: datastar-patch-elements',
     `data: selector #${target}`,
-    'data: mode inner',
+    `data: mode ${mode}`,
     ...lines.map((line) => `data: elements ${line}`),
     '', '',
   ].join('\n');
@@ -64,6 +80,41 @@ function renderContacts(query) {
     <p class="search-count">${results.length} ${results.length === 1 ? 'contact' : 'contacts'} found</p>
     ${results.length ? `<table><thead><tr><th scope="col">First name</th><th scope="col">Last name</th></tr></thead><tbody>${rows}</tbody></table>` : '<p class="search-empty">No matches. Try another name.</p>'}
   </div>`;
+}
+
+function renderLoadItems(page) {
+  return loadItems.slice(page * loadBatchSize, (page + 1) * loadBatchSize)
+    .map(([title, description], index) => `<article class="load-card">
+      <span class="load-index">${String(page * loadBatchSize + index + 1).padStart(2, '0')}</span>
+      <div><h3>${escapeHtml(title)}</h3><p>${escapeHtml(description)}</p></div>
+    </article>`).join('');
+}
+
+function handleLoad(request, url, route, clientId) {
+  if (request.method !== 'GET') return new Response('Not found', { status: 404 });
+  let input;
+  let signals;
+  try {
+    input = JSON.parse(url.searchParams.get('redactionInput') || '{}');
+    signals = JSON.parse(url.searchParams.get('datastar') || '{}');
+  } catch { return new Response('Invalid load request', { status: 400 }); }
+  if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).length ||
+      !signals || typeof signals !== 'object' || Array.isArray(signals)) {
+    return new Response('Invalid load request', { status: 400 });
+  }
+
+  if (route === 'load') {
+    loadProgress.set(clientId, 1);
+    return eventStream(patch(renderLoadItems(0), 'load-items') + patchSignals({ loadPage: 1, loadHasMore: true }));
+  }
+  const page = signals.loadPage;
+  if (!Number.isInteger(page) || page < 1 || page >= Math.ceil(loadItems.length / loadBatchSize)) {
+    return new Response('Invalid page', { status: 400 });
+  }
+  if (loadProgress.get(clientId) !== page) return new Response('Page out of sequence', { status: 409 });
+  loadProgress.set(clientId, page + 1);
+  return eventStream(patch(renderLoadItems(page), 'load-items', 'append') +
+    patchSignals({ loadPage: page + 1, loadHasMore: (page + 1) * loadBatchSize < loadItems.length }));
 }
 
 function contactSignals(editing) {
@@ -168,6 +219,7 @@ function openPipe(clientId) {
 
 async function handle(request, url, clientId) {
   const route = url.pathname.slice(prefix.length);
+  if (route === 'load' || route === 'load/more') return handleLoad(request, url, route, clientId);
   if (route === 'contact' || route === 'contact/edit' || route === 'contact/reset') {
     return handleContact(request, url, route);
   }

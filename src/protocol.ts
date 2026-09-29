@@ -1,14 +1,17 @@
-/** Serialize a trusted server-rendered HTML fragment as a Datastar morph event. */
-export function redactPatch(targetId: string, html: string): string {
+export type RedactPatchMode = 'inner' | 'append';
+
+/** Serialize trusted server-rendered HTML for an inner morph or append to a Redact host. */
+export function redactPatch(targetId: string, html: string, mode: RedactPatchMode = 'inner'): string {
   if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(targetId)) {
     throw new Error('Redact target IDs must contain only letters, numbers, underscores, or hyphens.');
   }
+  if (mode !== 'inner' && mode !== 'append') throw new Error('Redact patch mode must be inner or append.');
 
   const lines = html.replaceAll('\r', '').split('\n');
   return [
     'event: datastar-patch-elements',
     `data: selector #${targetId}`,
-    'data: mode inner',
+    `data: mode ${mode}`,
     ...lines.map((line) => `data: elements ${line}`),
     '',
     '',
@@ -16,8 +19,8 @@ export function redactPatch(targetId: string, html: string): string {
 }
 
 /** Use this from an HTTP handler after authenticating and validating the request. */
-export function redactResponse(targetId: string, html: string): Response {
-  return new Response(redactPatch(targetId, html), {
+export function redactResponse(targetId: string, html: string, mode: RedactPatchMode = 'inner'): Response {
+  return new Response(redactPatch(targetId, html, mode), {
     headers: {
       'content-type': 'text/event-stream; charset=utf-8',
       'cache-control': 'no-cache, no-transform',

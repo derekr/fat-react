@@ -2,13 +2,14 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import type { ReactNode } from 'react';
 import type { z } from 'zod';
 import type { Redaction } from './index';
-import { redactResponse } from './protocol';
+import { redactResponse, type RedactPatchMode } from './protocol';
 
 /** A framework-independent Request -> Response handler for one redaction. */
 export function createRedactionHandler<Schema extends z.ZodType>(
   action: Redaction<Schema>,
   targetId: string,
   render: (context: { input: z.output<Schema>; signals: unknown; request: Request }) => ReactNode | Promise<ReactNode>,
+  mode: RedactPatchMode = 'inner',
 ) {
   return async (request: Request): Promise<Response> => {
     const url = new URL(request.url);
@@ -32,6 +33,6 @@ export function createRedactionHandler<Schema extends z.ZodType>(
 
     // The caller must authenticate/authorize and validate any signals used in render().
     const element = await render({ input: result.data, signals, request });
-    return redactResponse(targetId, renderToStaticMarkup(element));
+    return redactResponse(targetId, renderToStaticMarkup(element), mode);
   };
 }
