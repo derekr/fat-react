@@ -7,6 +7,7 @@ const liveSubscribers = new Map();
 const liveRecord = { message: 'The sample field note is ready.', revision: 1 };
 const loadProgress = new Map();
 const scrollProgress = new Map();
+const wizardProgress = new Map();
 const encoder = new TextEncoder();
 const initialContact = { firstName: 'Juniper', lastName: 'Comet', role: 'Cartographer' };
 let contact = { ...initialContact };
@@ -88,6 +89,148 @@ function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   })[char]);
+}
+
+function wizardAction(route, input) {
+  const url = `${scope.pathname}__redact/wizard/${route}?redactionInput=${encodeURIComponent(JSON.stringify(input))}`;
+  return escapeHtml(`@post(${JSON.stringify(url)}, {filterSignals: {include: /^wizard(Title|Category|Description)$/}})`);
+}
+
+function renderWizard(state, error = '', draft = state) {
+  if (state.step === 'done') return `<div class="wizard-done" role="status"><span>FIELD CARD SAVED</span>
+    <h3>${escapeHtml(state.title)}</h3><p>Added as a sample ${escapeHtml(state.category)}.</p>
+    <p>${escapeHtml(state.description)}</p><small>This demo keeps the card only in the service worker.</small></div>`;
+  const stages = { entry: 1, details: 2, review: 3 };
+  const header = `<div class="wizard-progress"><span>STEP ${stages[state.step]} OF 3</span><progress value="${stages[state.step]}" max="3" aria-label="Form progress"></progress></div>`;
+  const feedback = error ? `<p class="wizard-error" role="alert">${escapeHtml(error)}</p>` : '';
+  if (state.step === 'entry') return `${header}<form class="wizard-form" data-on:submit__prevent="${wizardAction('next', { from: 'entry' })}">
+    <h3>Name your field card.</h3><label for="wizard-title">Card title</label>
+    <input id="wizard-title" name="title" data-bind:wizard-title maxlength="50" value="${escapeHtml(draft.title)}" placeholder="e.g. Painted fern" autocomplete="off">
+    <p class="wizard-hint">Use 2–50 characters. The server checks this before advancing.</p>${feedback}
+    <button type="submit">Continue →</button></form>`;
+  if (state.step === 'details') return `${header}<form class="wizard-form" data-on:submit__prevent="${wizardAction('next', { from: 'details' })}">
+    <h3>Add a little context.</h3><label for="wizard-category">Category</label>
+    <select id="wizard-category" name="category" data-bind:wizard-category>
+      <option value="">Choose a category…</option>
+      ${['Drawing', 'Map', 'Journal'].map((category) => `<option value="${category.toLowerCase()}"${draft.category === category.toLowerCase() ? ' selected' : ''}>${category}</option>`).join('')}
+    </select><label for="wizard-description">Short description</label>
+    <textarea id="wizard-description" name="description" data-bind:wizard-description maxlength="120" rows="3" placeholder="A made-up observation from the field…">${escapeHtml(draft.description)}</textarea>
+    <p class="wizard-hint">Choose a category and write 4–120 characters.</p>${feedback}
+    <div class="wizard-actions"><button type="button" class="secondary" data-on:click="${wizardAction('back', { from: 'details' })}">← Back</button><button type="submit">Review →</button></div></form>`;
+  return `${header}<div class="wizard-form"><h3>Review your card.</h3><dl class="wizard-review">
+    <dt>Title</dt><dd>${escapeHtml(state.title)}</dd><dt>Category</dt><dd>${escapeHtml(state.category)}</dd>
+    <dt>Description</dt><dd>${escapeHtml(state.description)}</dd></dl>
+    <div class="wizard-actions"><button type="button" class="secondary" data-on:click="${wizardAction('back', { from: 'review' })}">← Back</button>
+    <button type="button" data-on:click="${wizardAction('finish', { from: 'review' })}">Save sample card</button></div></div>`;
+}
+
+function wizardResponse(state, error = '', draft = state) {
+  return eventStream(patchSignals({ wizardTitle: draft.title, wizardCategory: draft.category,
+    wizardDescription: draft.description }) + patch(renderWizard(state, error, draft), 'wizard-panel'));
+}
+
+async function handleWizard(request, url, route, clientId) {
+  const initial = route === 'wizard';
+  if (request.method !== (initial ? 'GET' : 'POST')) return new Response('Not found', { status: 404 });
+  let input;
+  try { input = JSON.parse(url.searchParams.get('redactionInput') || (initial ? '{}' : 'null')); }
+  catch { return new Response('Invalid step', { status: 400 }); }
+  if (!input || typeof input !== 'object' || Array.isArray(input) ||
+      Object.keys(input).length !== (initial || route === 'wizard/reset' ? 0 : 1)) {
+    return new Response('Invalid step', { status: 400 });
+  }
+  if (initial || route === 'wizard/reset') {
+    const state = { step: 'entry', title: '', category: '', description: '' };
+    wizardProgress.set(clientId, state);
+    return wizardResponse(state);
+  }
+  const state = wizardProgress.get(clientId);
+  if (!state || input.from !== state.step || !['wizard/next', 'wizard/back', 'wizard/finish'].includes(route)) {
+    return new Response('Step out of sequence', { status: 409 });
+  }
+  if (route === 'wizard/back') {
+    if (state.step === 'details') state.step = 'entry';
+    else if (state.step === 'review') state.step = 'details';
+    else return new Response('Step out of sequence', { status: 409 });
+    return wizardResponse(state);
+  }
+  if (route === 'wizard/finish') {
+    if (state.step !== 'review') return new Response('Step out of sequence', { status: 409 });
+    state.step = 'done';
+    return wizardResponse(state);
+  }
+  if (state.step !== 'entry' && state.step !== 'details') return new Response('Step out of sequence', { status: 409 });
+  let signals;
+  try { signals = await request.json(); }
+  catch { return new Response('Invalid fields', { status: 400 }); }
+  if (!signals || typeof signals !== 'object' || Array.isArray(signals)) return new Response('Invalid fields', { status: 400 });
+  if (state.step === 'entry') {
+    if (typeof signals.wizardTitle !== 'string' || signals.wizardTitle.length > 50) return new Response('Invalid title', { status: 400 });
+    const title = signals.wizardTitle.trim();
+    if (title.length < 2) return wizardResponse(state, 'Use at least two characters for the title.',
+      { ...state, title: signals.wizardTitle });
+    state.title = title;
+    state.step = 'details';
+  } else {
+    if (typeof signals.wizardCategory !== 'string' || typeof signals.wizardDescription !== 'string' ||
+        signals.wizardCategory.length > 20 || signals.wizardDescription.length > 120) {
+      return new Response('Invalid details', { status: 400 });
+    }
+    const description = signals.wizardDescription.trim();
+    if (!['drawing', 'map', 'journal'].includes(signals.wizardCategory) || description.length < 4) {
+      return wizardResponse(state, 'Choose a category and write at least four characters.',
+        { ...state, category: signals.wizardCategory, description: signals.wizardDescription });
+    }
+    state.category = signals.wizardCategory;
+    state.description = description;
+    state.step = 'review';
+  }
+  return wizardResponse(state);
+}
+
+const feedEvents = [
+  ['Sketch received', 'A copperleaf fern drawing joined the sample archive.'],
+  ['Route checked', 'The little foothill map was reviewed.'],
+  ['Note filed', 'A made-up observation was added to the journal.'],
+  ['Index refreshed', 'The sample catalog is ready to browse.'],
+];
+
+function renderFeedEvent(index) {
+  const [title, detail] = feedEvents[index];
+  return `<article class="feed-entry"><span class="feed-index">${String(index + 1).padStart(2, '0')}</span>
+    <div><h3>${escapeHtml(title)}</h3><p>${escapeHtml(detail)}</p></div></article>`;
+}
+
+function handleFeed(request, url) {
+  if (request.method !== 'GET') return new Response('Not found', { status: 404 });
+  let input;
+  try { input = JSON.parse(url.searchParams.get('redactionInput') || '{}'); }
+  catch { return new Response('Invalid feed request', { status: 400 }); }
+  if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).length) {
+    return new Response('Invalid feed request', { status: 400 });
+  }
+  let timer;
+  const body = new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode(patch('<p class="feed-start">Listening for sample activity…</p>', 'feed-items') +
+        patchSignals({ _feedRunning: true })));
+      let index = 0;
+      timer = setInterval(() => {
+        try {
+          controller.enqueue(encoder.encode(patch(renderFeedEvent(index), 'feed-items', index === 0 ? 'inner' : 'append')));
+          index++;
+          if (index === feedEvents.length) {
+            clearInterval(timer);
+            controller.enqueue(encoder.encode(patchSignals({ _feedRunning: false }) +
+              patch('<p class="feed-end">All sample events delivered. Replay to watch again.</p>', 'feed-items', 'append')));
+            controller.close();
+          }
+        } catch { clearInterval(timer); }
+      }, 950);
+    },
+    cancel() { clearInterval(timer); },
+  });
+  return eventStream(body);
 }
 
 async function handleModalDetails(request, url) {
@@ -674,6 +817,8 @@ async function handleLive(request, url, route, clientId) {
 
 async function handle(request, url, clientId) {
   const route = url.pathname.slice(prefix.length);
+  if (route === 'wizard' || route.startsWith('wizard/')) return handleWizard(request, url, route, clientId);
+  if (route === 'feed') return handleFeed(request, url);
   if (route === 'live/stream' || route === 'live/update') return handleLive(request, url, route, clientId);
   if (route === 'sort' || route === 'sort/move' || route === 'sort/reset') return handleSort(request, url, route);
   if (route === 'details/view') return handleModalDetails(request, url);

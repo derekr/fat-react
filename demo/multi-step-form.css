@@ -1,0 +1,22 @@
+.wizard-shell{max-width:880px;margin:0 auto}
+.wizard-panel{min-height:380px;margin-top:24px}
+.wizard-panel:empty:before{content:attr(data-fallback);color:#738676}
+.wizard-progress{display:flex;align-items:center;gap:18px;margin-bottom:20px;color:#55705e;font:11px 'DM Mono',monospace}
+.wizard-progress progress{width:130px;height:9px;accent-color:#365640}
+.wizard-form{display:grid;gap:12px;max-width:520px;padding:24px;border:1px solid #d9e3d5;border-radius:10px;background:#fffefa}
+.wizard-form h3,.wizard-done h3{margin:0 0 9px;font-size:21px;color:#2c4c34}
+.wizard-form label{font:11px 'DM Mono',monospace;text-transform:uppercase;color:#53755d}
+.wizard-form input,.wizard-form select,.wizard-form textarea{width:100%;box-sizing:border-box;padding:12px;border:1px solid #cbdac9;border-radius:7px;background:#fff;color:#2e4d34;font:inherit}
+.wizard-form textarea{resize:vertical}
+.wizard-form :is(input,select,textarea,button):focus-visible,.wizard-reset:focus-visible{outline:3px solid #e5946b;outline-offset:3px}
+.wizard-form button{justify-self:start;padding:11px 16px;border:1px solid #254733;border-radius:7px;background:#254733;color:#fff;font-weight:700;cursor:pointer}
+.wizard-form button.secondary{background:#fff;color:#365640}
+.wizard-actions{display:flex;gap:12px;flex-wrap:wrap}
+.wizard-hint{margin:0;color:#6f8572;font-size:12px}
+.wizard-error{margin:0;color:#a33e36;font-size:13px}
+.wizard-review{display:grid;grid-template-columns:95px 1fr;gap:12px;margin:0 0 12px;font-size:14px;overflow-wrap:anywhere}
+.wizard-review dt{font-weight:700;color:#49654e}
+.wizard-review dd{margin:0}
+.wizard-reset{margin-top:5px;padding:10px 14px;border:1px solid #b9d0b9;border-radius:7px;background:transparent;color:#365640;font-weight:700;cursor:pointer}
+.wizard-done{max-width:520px;padding:24px;border:1px solid #c5dcc3;border-radius:10px;background:#f3f9ee;overflow-wrap:anywhere}
+.wizard-done span{font:11px 'DM Mono',monospace;color:#53755d}.wizard-done p{color:#48654e;line-height:1.6}.wizard-done small{color:#698070}

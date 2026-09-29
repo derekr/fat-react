@@ -1,0 +1,9 @@
+.feed-shell{max-width:880px;margin:0 auto}
+.feed-items{min-height:330px;margin:25px 0;display:grid;align-content:start;gap:11px}
+.feed-items:empty:before{content:attr(data-fallback);color:#738676}
+.feed-start,.feed-end{color:#6c8571;font:12px 'DM Mono',monospace}
+.feed-entry{display:flex;gap:18px;padding:15px;border:1px solid #d6e1d1;border-radius:9px;background:#fffefa}
+.feed-index{color:#6d9374;font:12px 'DM Mono',monospace}.feed-entry h3{margin:0 0 6px;color:#365640;font-size:16px}
+.feed-entry p{margin:0;color:#728674;font-size:13px;line-height:1.6}
+.feed-replay{padding:11px 17px;border:1px solid #254733;border-radius:7px;background:#254733;color:white;font-weight:700;cursor:pointer}
+.feed-replay:disabled{opacity:.6;cursor:wait}.feed-replay:focus-visible{outline:3px solid #e5946b;outline-offset:3px}

@@ -28,6 +28,8 @@ export default defineConfig(({ command }) => ({
     modalDetails: fileURLToPath(new URL('./examples/modal-details/index.html', import.meta.url)),
     sortableList: fileURLToPath(new URL('./examples/sortable-list/index.html', import.meta.url)),
     crossTabUpdates: fileURLToPath(new URL('./examples/cross-tab-updates/index.html', import.meta.url)),
+    multiStepForm: fileURLToPath(new URL('./examples/multi-step-form/index.html', import.meta.url)),
+    liveActivityFeed: fileURLToPath(new URL('./examples/live-activity-feed/index.html', import.meta.url)),
   } } },
   plugins: [{
     name: 'microlighter-grammars',

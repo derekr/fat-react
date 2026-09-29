@@ -89,6 +89,16 @@ function App() {
         <span>Open this demo twice. Save an invented note in one tab and watch the other tab receive the new server view.</span>
         <span className="feature-tags">Repipe · Rewire · POST · broadcast SSE · Redact</span>
       </a>
+      <a className="example-feature" href={`${base}examples/multi-step-form/`}>
+        <span className="step">15 / LIVE RECIPE</span><strong>Multi-Step Form <span aria-hidden="true">↗</span></strong>
+        <span>Create a fictional field card across three server-owned steps, with validated transitions, back navigation, and a review screen.</span>
+        <span className="feature-tags">Rewire · data-bind · POST · server state · Redact</span>
+      </a>
+      <a className="example-feature" href={`${base}examples/live-activity-feed/`}>
+        <span className="step">16 / LIVE RECIPE</span><strong>Live Activity Feed <span aria-hidden="true">↗</span></strong>
+        <span>Watch invented archive events arrive one at a time over SSE. Append patches preserve the earlier entries.</span>
+        <span className="feature-tags">Rewire · GET · timed SSE · append · Redact</span>
+      </a>
       <section className="attribute-guide" aria-labelledby="attributes-title">
         <span className="under-label">CORE ATTRIBUTE MAP</span>
         <h2 id="attributes-title">The browser’s vocabulary, in JSX.</h2>

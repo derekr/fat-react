@@ -308,3 +308,81 @@ test('a validated note update broadcasts to two read streams and replays on reco
   assert.match(decode((await reconnected.read()).value), /REV 2[^]*&lt;Sample ridge&gt;/);
   await reconnected.cancel();
 });
+
+test('multi-step form validates each transition and preserves an accepted draft on back', async () => {
+  const listeners = new Map();
+  const scope = 'https://example.test/redact/examples/multi-step-form/';
+  runInNewContext(readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8'), {
+    self: { registration: { scope }, addEventListener(name, callback) { listeners.set(name, callback); } },
+    URL, Response, TextEncoder, ReadableStream,
+  });
+  async function send(route, method, input, signals = {}, clientId = 'wizard-tab') {
+    const url = `${scope}__redact/wizard${route}${input === undefined ? '' : `?redactionInput=${encodeURIComponent(JSON.stringify(input))}`}`;
+    let response;
+    listeners.get('fetch')({ request: new Request(url, {
+      method, ...(method === 'POST' ? { body: JSON.stringify(signals) } : {}),
+    }), clientId, respondWith(value) { response = value; } });
+    return response;
+  }
+  assert.match(await (await send('', 'GET')).text(), /STEP 1 OF 3/);
+  assert.equal((await send('/finish', 'POST', { from: 'review' })).status, 409);
+  assert.equal((await send('/next', 'POST', { from: 'entry' }, { wizardTitle: 42 })).status, 400);
+  const error = await (await send('/next', 'POST', { from: 'entry' }, { wizardTitle: 'x' })).text();
+  assert.match(error, /at least two characters/);
+  assert.match(error, /value="x"/);
+  assert.equal((await send('/next', 'POST', { from: 'entry' }, { wizardTitle: 'Missing session' }, 'other-tab')).status, 409);
+  assert.match(await (await send('/next', 'POST', { from: 'entry' }, { wizardTitle: '<Fern card>' })).text(), /STEP 2 OF 3/);
+  assert.equal((await send('/next', 'POST', { from: 'entry' }, { wizardTitle: 'Stale' })).status, 409);
+  assert.match(await (await send('/next', 'POST', { from: 'details' }, {
+    wizardCategory: 'unknown', wizardDescription: 'Sample entry',
+  })).text(), /Choose a category/);
+  assert.equal((await send('/next', 'POST', { from: 'details' }, { wizardCategory: 'map', wizardDescription: 23 })).status, 400);
+  const review = await (await send('/next', 'POST', { from: 'details' }, {
+    wizardCategory: 'map', wizardDescription: 'A & B route',
+  })).text();
+  assert.match(review, /STEP 3 OF 3/);
+  assert.match(review, /&lt;Fern card&gt;/);
+  assert.match(review, /A &amp; B route/);
+  assert.match(await (await send('/back', 'POST', { from: 'review' })).text(), /value="map" selected/);
+  assert.match(await (await send('/next', 'POST', { from: 'details' }, {
+    wizardCategory: 'map', wizardDescription: 'A & B route',
+  })).text(), /STEP 3 OF 3/);
+  assert.match(await (await send('/finish', 'POST', { from: 'review' })).text(), /FIELD CARD SAVED/);
+  assert.equal((await send('/finish', 'POST', { from: 'review' })).status, 409);
+  assert.match(await (await send('/reset', 'POST', {})).text(), /STEP 1 OF 3/);
+});
+
+test('live activity feed delivers sequential append patches and ends its stream', async () => {
+  const listeners = new Map();
+  const scope = 'https://example.test/redact/examples/live-activity-feed/';
+  runInNewContext(readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8'), {
+    self: { registration: { scope }, addEventListener(name, callback) { listeners.set(name, callback); } },
+    URL, Response, TextEncoder, ReadableStream, setInterval, clearInterval,
+  });
+  async function send(input, method = 'GET') {
+    const url = `${scope}__redact/feed${input === undefined ? '' : `?redactionInput=${encodeURIComponent(JSON.stringify(input))}`}`;
+    let response;
+    listeners.get('fetch')({ request: new Request(url, { method }), clientId: 'feed-tab',
+      respondWith(value) { response = value; } });
+    return response;
+  }
+  assert.equal((await send({ unexpected: true })).status, 400);
+  assert.equal((await send({}, 'POST')).status, 404);
+  const reader = (await send()).body.getReader();
+  const decoder = new TextDecoder();
+  assert.match(decoder.decode((await reader.read()).value), /Listening for sample activity/);
+  const chunks = [];
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(decoder.decode(value));
+  }
+  const entries = chunks.filter((chunk) => chunk.includes('feed-index'));
+  assert.equal(entries.length, 4);
+  for (const [index, chunk] of entries.entries()) {
+    assert.match(chunk, index === 0 ? /data: mode inner/ : /data: mode append/);
+    assert.match(chunk, new RegExp(`feed-index[^]*?${String(index + 1).padStart(2, '0')}`));
+  }
+  assert.match(chunks.at(-1), /All sample events delivered/);
+  assert.match(chunks.at(-1), /"_feedRunning":false/);
+});
