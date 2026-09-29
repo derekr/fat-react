@@ -510,12 +510,14 @@ async function handleHabitats(request, url, route, clientId) {
     await new Promise((resolve) => setTimeout(resolve, { ridge: 700, marsh: 200, grove: 450 }[signals.region] ?? 0));
     if (habitatGenerations.get(clientId) !== generation) return eventStream('');
     const describeUrl = `${scope.pathname}__redact/habitats/describe?redactionInput=${encodeURIComponent(JSON.stringify({ generation }))}`;
-    const select = region ? `<label for="habitat-choice">Habitat</label>
-      <select id="habitat-choice" name="habitat" data-bind:habitat data-indicator="_loadingNote"
+    const select = region ? `<label for="habitat-choice-${generation}">Habitat · ${escapeHtml(region.label)}</label>
+      <select id="habitat-choice-${generation}" name="habitat" data-bind:habitat data-indicator="_loadingNote"
+        data-attr:disabled="$selectionGeneration !== $habitatsReadyGeneration"
         data-on:change="${escapeHtml(`@get(${JSON.stringify(describeUrl)}, {requestCancellation: 'cleanup'})`)}">
         <option value="">Choose a habitat…</option>
         ${Object.entries(region.habitats).map(([id, [name]]) => `<option value="${escapeHtml(id)}">${escapeHtml(name)}</option>`).join('')}
-      </select>` : '<p>Choose a region to load its habitats.</p>';
+      </select>` : `<label for="habitat-choice-${generation}">Habitat</label>
+        <select id="habitat-choice-${generation}" disabled><option>Choose a region first…</option></select>`;
     return eventStream(patch(select, `habitat-options-${generation}`) +
       patch('<p>Choose a habitat to see its field note.</p>', `habitat-description-${generation}`) +
       patchSignals({ habitatsReadyGeneration: generation }));

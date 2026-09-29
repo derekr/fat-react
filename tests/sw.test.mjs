@@ -170,6 +170,8 @@ test('dependent selects validate each region and habitat pair', async () => {
   const options = await (await send('options', { region: 'ridge', habitat: 'stale' })).text();
   assert.match(options, /selector #habitat-options-1/);
   assert.match(options, /"habitatsReadyGeneration":1/);
+  assert.match(options, /data-attr:disabled="\$selectionGeneration !== \$habitatsReadyGeneration"/);
+  assert.match(options, /id="habitat-choice-1"/);
   assert.match(options, /Sunlit lookout/);
   assert.doesNotMatch(options, /Reed beds/);
   const note = await (await send('describe', { region: 'ridge', habitat: 'lookout' })).text();
