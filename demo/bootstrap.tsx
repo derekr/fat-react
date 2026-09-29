@@ -11,6 +11,23 @@ export async function bootstrap(app: ReactNode, scope = import.meta.env.BASE_URL
   try {
     const base = import.meta.env.BASE_URL;
     const registration = await navigator.serviceWorker.register(`${base}sw.js`, { scope });
+    if (scope !== base) {
+      // Example routes are added over time; an existing scoped worker may not know a new route yet.
+      await registration.update();
+      const replacement = registration.installing ?? registration.waiting;
+      if (replacement) {
+        await new Promise<void>((resolve) => {
+          const check = () => {
+            if (replacement.state === 'installed') replacement.postMessage('SKIP_WAITING');
+            if (replacement.state !== 'activated' && replacement.state !== 'redundant') return;
+            replacement.removeEventListener('statechange', check);
+            resolve();
+          };
+          replacement.addEventListener('statechange', check);
+          check();
+        });
+      }
+    }
     await navigator.serviceWorker.ready;
     if (registration.waiting) {
       registration.waiting.postMessage('SKIP_WAITING');
