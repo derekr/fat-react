@@ -482,7 +482,7 @@ function handleDeleteRows(request, url, route) {
   return eventStream(patch(renderDeletableRows('Row removed from the sample archive.'), 'delete-rows'));
 }
 
-function handleHabitats(request, url, route) {
+async function handleHabitats(request, url, route) {
   if (request.method !== 'GET') return new Response('Not found', { status: 404 });
   let input;
   let signals;
@@ -490,29 +490,39 @@ function handleHabitats(request, url, route) {
     input = JSON.parse(url.searchParams.get('redactionInput') || 'null');
     signals = JSON.parse(url.searchParams.get('datastar') || 'null');
   } catch { return new Response('Invalid habitat request', { status: 400 }); }
-  if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).length ||
+  if (!input || typeof input !== 'object' || Array.isArray(input) ||
+      Object.keys(input).length !== (route === 'habitats/options' ? 0 : 1) ||
       !signals || typeof signals !== 'object' || Array.isArray(signals) ||
       typeof signals.region !== 'string' || signals.region.length > 16) {
     return new Response('Invalid habitat request', { status: 400 });
   }
+  const generation = route === 'habitats/options' ? signals.selectionGeneration : input.generation;
+  if (!Number.isSafeInteger(generation) || generation < 1 || generation > 999999) {
+    return new Response('Invalid selection generation', { status: 400 });
+  }
   const region = regions[signals.region];
   if (route === 'habitats/options') {
     if (signals.region && !Object.hasOwn(regions, signals.region)) return new Response('Unknown region', { status: 400 });
+    // Uneven response times make quick region changes exercise the stale-response path.
+    await new Promise((resolve) => setTimeout(resolve, { ridge: 700, marsh: 200, grove: 450 }[signals.region] ?? 0));
+    const describeUrl = `${scope.pathname}__redact/habitats/describe?redactionInput=${encodeURIComponent(JSON.stringify({ generation }))}`;
     const select = region ? `<label for="habitat-choice">Habitat</label>
-      <select id="habitat-choice" name="habitat" data-bind:habitat data-on:change="${escapeHtml(`@get(${JSON.stringify(`${scope.pathname}__redact/habitats/describe?redactionInput=%7B%7D`)})`)}">
+      <select id="habitat-choice" name="habitat" data-bind:habitat data-indicator="_loadingNote"
+        data-on:change="${escapeHtml(`@get(${JSON.stringify(describeUrl)}, {requestCancellation: 'cleanup'})`)}">
         <option value="">Choose a habitat…</option>
         ${Object.entries(region.habitats).map(([id, [name]]) => `<option value="${escapeHtml(id)}">${escapeHtml(name)}</option>`).join('')}
       </select>` : '<p>Choose a region to load its habitats.</p>';
-    return eventStream(patchSignals({ habitat: '' }) + patch(select, 'habitat-options') +
-      patch('<p>Choose a habitat to see its field note.</p>', 'habitat-description'));
+    return eventStream(patch(select, `habitat-options-${generation}`) +
+      patch('<p>Choose a habitat to see its field note.</p>', `habitat-description-${generation}`));
   }
   if (!region || !Object.hasOwn(regions, signals.region) ||
       typeof signals.habitat !== 'string' || !Object.hasOwn(region.habitats, signals.habitat)) {
     return new Response('Invalid region and habitat pair', { status: 400 });
   }
   const [name, note] = region.habitats[signals.habitat];
+  await new Promise((resolve) => setTimeout(resolve, 300));
   return eventStream(patch(`<article class="habitat-note"><span>${escapeHtml(region.label)} / FIELD NOTE</span>
-    <h3>${escapeHtml(name)}</h3><p>${escapeHtml(note)}</p></article>`, 'habitat-description'));
+    <h3>${escapeHtml(name)}</h3><p>${escapeHtml(note)}</p></article>`, `habitat-description-${generation}`));
 }
 
 async function handleUpload(request, url) {

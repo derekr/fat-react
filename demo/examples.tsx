@@ -66,8 +66,8 @@ function App() {
       </a>
       <a className="example-feature" href={`${base}examples/dependent-selects/`}>
         <span className="step">10 / LIVE RECIPE</span><strong>Dependent Selects <span aria-hidden="true">↗</span></strong>
-        <span>Choose an invented region to load its habitats, then choose a habitat to reveal a server-rendered description.</span>
-        <span className="feature-tags">Rewire · bind · GET · dependent fields · Redact</span>
+        <span>Choose a region, then a habitat. Switch regions quickly to see stale choices clear immediately while only the latest response can fill the dependent fields.</span>
+        <span className="feature-tags">Rewire · bind · GET · race-safe morphs · Redact</span>
       </a>
       <a className="example-feature" href={`${base}examples/file-upload/`}>
         <span className="step">11 / LIVE RECIPE</span><strong>File Upload <span aria-hidden="true">↗</span></strong>

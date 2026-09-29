@@ -156,19 +156,20 @@ test('dependent selects validate each region and habitat pair', async () => {
   const scope = 'https://example.test/redact/examples/dependent-selects/';
   runInNewContext(readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8'), {
     self: { registration: { scope }, addEventListener(name, callback) { listeners.set(name, callback); } },
-    URL, Response, TextEncoder, ReadableStream,
+    URL, Response, TextEncoder, ReadableStream, setTimeout,
   });
-  async function send(route, signals, input = {}) {
+  async function send(route, signals, input = route === 'options' ? {} : { generation: 1 }) {
     const url = new URL(`${scope}__redact/habitats/${route}`);
     url.searchParams.set('redactionInput', JSON.stringify(input));
-    url.searchParams.set('datastar', JSON.stringify(signals));
+    url.searchParams.set('datastar', JSON.stringify({ selectionGeneration: 1, ...signals }));
     let response;
     listeners.get('fetch')({ request: new Request(url), clientId: 'sample-tab',
       respondWith(value) { response = value; } });
     return response;
   }
   const options = await (await send('options', { region: 'ridge', habitat: 'stale' })).text();
-  assert.match(options, /"habitat":""/);
+  assert.match(options, /selector #habitat-options-1/);
+  assert.doesNotMatch(options, /datastar-patch-signals/);
   assert.match(options, /Sunlit lookout/);
   assert.doesNotMatch(options, /Reed beds/);
   const note = await (await send('describe', { region: 'ridge', habitat: 'lookout' })).text();
@@ -180,7 +181,26 @@ test('dependent selects validate each region and habitat pair', async () => {
     ['describe', { region: 'ridge', habitat: 'constructor' }],
     ['describe', { region: 'grove', habitat: '' }],
   ]) assert.equal((await send(route, signals)).status, 400);
-  assert.equal((await send('options', { region: 'ridge' }, { unexpected: true })).status, 400);
+  for (const input of [{ unexpected: true }, { generation: -1 }, { generation: '1' }]) {
+    assert.equal((await send('options', { region: 'ridge' }, input)).status, 400);
+  }
+  assert.equal((await send('options', { region: 'ridge', selectionGeneration: -1 })).status, 400);
+
+  const order = [];
+  const slow = send('options', { region: 'ridge', selectionGeneration: 2 }).then(async (response) => {
+    order.push('ridge'); return response.text();
+  });
+  const fast = send('options', { region: 'marsh', selectionGeneration: 3 }).then(async (response) => {
+    order.push('marsh'); return response.text();
+  });
+  const [stale, current] = await Promise.all([slow, fast]);
+  assert.deepEqual(order, ['marsh', 'ridge']);
+  assert.match(stale, /selector #habitat-options-2/);
+  assert.doesNotMatch(stale, /selector #habitat-options-3|datastar-patch-signals/);
+  assert.match(current, /selector #habitat-options-3[^]*Reed beds/);
+  assert.match(current, /selector #habitat-description-3/);
+  assert.match(await (await send('describe', { region: 'marsh', habitat: 'island' }, { generation: 3 })).text(),
+    /selector #habitat-description-3/);
 });
 
 test('multipart upload validates file contents and returns only a summary', async () => {
